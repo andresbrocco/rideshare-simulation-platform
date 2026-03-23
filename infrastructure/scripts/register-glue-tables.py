@@ -92,6 +92,9 @@ def _build_columns(is_dlq: bool) -> list[dict[str, str]]:
 
     DLQ tables carry two extra audit columns: _error_message and
     _error_timestamp. All other columns are shared across both table types.
+    The partition column _ingestion_date is included in the column list
+    (not in PartitionKeys) so that DeltaCatalog reads partition info from
+    the Delta transaction log.
     """
     columns: list[dict[str, str]] = [
         {"Name": "_raw_value", "Type": "string"},
@@ -105,49 +108,59 @@ def _build_columns(is_dlq: bool) -> list[dict[str, str]]:
     if is_dlq:
         columns.append({"Name": "_error_message", "Type": "string"})
         columns.append({"Name": "_error_timestamp", "Type": "string"})
+    columns.append({"Name": "_ingestion_date", "Type": "string"})
     return columns
 
 
-def register_table(table_name: str, bucket: str, database: str) -> bool:
-    """Register a single Delta table in the Glue Data Catalog.
+def _build_table_input(table_name: str, bucket: str) -> dict[str, object]:
+    """Build the Glue TableInput dict for a bronze Delta table.
 
-    Returns True if the table was newly registered, False if it was already
-    present (idempotent no-op). Raises on unexpected errors.
+    Used by both the create and update paths in register_table().
     """
-    if not _has_delta_log(bucket, table_name):
-        print(f"  [SKIP] {table_name} - no data in S3 yet (will register on next run)")
-        return False
-
     is_dlq = table_name.startswith("dlq_")
     columns = _build_columns(is_dlq)
 
-    table_input: dict[str, object] = {
+    return {
         "Name": table_name,
         "StorageDescriptor": {
             "Columns": columns,
             "Location": f"s3://{bucket}/{table_name}/",
-            "InputFormat": "org.apache.hadoop.mapred.SequenceFileInputFormat",
-            "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat",
+            "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+            "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
             "SerdeInfo": {
-                "SerializationLibrary": "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"
+                "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
             },
         },
-        "PartitionKeys": [{"Name": "_ingestion_date", "Type": "string"}],
         "Parameters": {
             "classification": "delta",
             "table_type": "DELTA",
+            "spark.sql.sources.provider": "delta",
         },
         "TableType": "EXTERNAL_TABLE",
     }
 
+
+def register_table(table_name: str, bucket: str, database: str) -> str:
+    """Register or update a single Delta table in the Glue Data Catalog.
+
+    Returns a status string: "registered", "updated", or "skipped".
+    Raises on unexpected errors.
+    """
+    if not _has_delta_log(bucket, table_name):
+        print(f"  [SKIP] {table_name} - no data in S3 yet (will register on next run)")
+        return "skipped"
+
+    table_input = _build_table_input(table_name, bucket)
+
     try:
         glue_client.create_table(DatabaseName=database, TableInput=table_input)
         print(f"  [OK] {table_name} - registered")
-        return True
+        return "registered"
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "AlreadyExistsException":
-            print(f"  [SKIP] {table_name} - already registered")
-            return False
+            glue_client.update_table(DatabaseName=database, TableInput=table_input)
+            print(f"  [UPDATED] {table_name} - definition corrected")
+            return "updated"
         raise
 
 
@@ -188,13 +201,17 @@ def main() -> int:
     print()
 
     registered = 0
+    updated = 0
     skipped = 0
     failed = 0
 
     for table_name in tables:
         try:
-            if register_table(table_name, bucket, database):
+            status = register_table(table_name, bucket, database)
+            if status == "registered":
                 registered += 1
+            elif status == "updated":
+                updated += 1
             else:
                 skipped += 1
         except ClientError as exc:
@@ -206,7 +223,8 @@ def main() -> int:
     print("Registration Summary")
     print("=" * 60)
     print(f"  Registered: {registered}")
-    print(f"  Skipped (already registered or no data yet): {skipped}")
+    print(f"  Updated: {updated}")
+    print(f"  Skipped (no data yet): {skipped}")
     print(f"  Failed: {failed}")
     print()
 

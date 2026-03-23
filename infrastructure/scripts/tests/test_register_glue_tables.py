@@ -65,6 +65,8 @@ class TestRegisterGlueTables(unittest.TestCase):
         mock_s3.head_object.return_value = {}
         # create_table succeeds by default
         mock_glue.create_table.return_value = {}
+        # update_table succeeds by default
+        mock_glue.update_table.return_value = {}
         # create_database succeeds by default
         mock_glue.create_database.return_value = {}
         return mock_glue, mock_s3
@@ -83,6 +85,10 @@ class TestRegisterGlueTables(unittest.TestCase):
 
         return patch("boto3.client", side_effect=_client_factory)
 
+    def _get_table_input(self, mock_glue: MagicMock) -> dict[str, object]:
+        """Extract the TableInput from the most recent create_table call."""
+        return mock_glue.create_table.call_args.kwargs["TableInput"]
+
     # ------------------------------------------------------------------
     # 1. register_new_table
     # ------------------------------------------------------------------
@@ -95,18 +101,19 @@ class TestRegisterGlueTables(unittest.TestCase):
             mod = _load_module()
             result = mod.register_table("bronze_trips", "rideshare-bronze", "rideshare_bronze")
 
-        self.assertTrue(result)
+        self.assertEqual(result, "registered")
         mock_glue.create_table.assert_called_once()
-        call_kwargs = mock_glue.create_table.call_args.kwargs
-        self.assertEqual(call_kwargs["DatabaseName"], "rideshare_bronze")
-        self.assertEqual(call_kwargs["TableInput"]["Name"], "bronze_trips")
+        table_input = self._get_table_input(mock_glue)
+        self.assertEqual(table_input["Name"], "bronze_trips")
+        # Verify spark.sql.sources.provider is set
+        self.assertEqual(table_input["Parameters"]["spark.sql.sources.provider"], "delta")
 
     # ------------------------------------------------------------------
-    # 2. skip_already_exists
+    # 2. update_existing_table
     # ------------------------------------------------------------------
 
-    def test_skip_already_exists(self) -> None:
-        """AlreadyExistsException should make the call idempotent (returns False)."""
+    def test_update_existing_table(self) -> None:
+        """AlreadyExistsException should trigger update_table with corrected definition."""
         mock_glue, mock_s3 = self._make_clients()
         mock_glue.create_table.side_effect = _client_error("AlreadyExistsException")
 
@@ -114,15 +121,21 @@ class TestRegisterGlueTables(unittest.TestCase):
             mod = _load_module()
             result = mod.register_table("bronze_trips", "rideshare-bronze", "rideshare_bronze")
 
-        self.assertFalse(result)
+        self.assertEqual(result, "updated")
         mock_glue.create_table.assert_called_once()
+        mock_glue.update_table.assert_called_once()
+        # Verify the update call has the corrected definition
+        update_kwargs = mock_glue.update_table.call_args.kwargs
+        self.assertEqual(update_kwargs["DatabaseName"], "rideshare_bronze")
+        table_input = update_kwargs["TableInput"]
+        self.assertEqual(table_input["Parameters"]["spark.sql.sources.provider"], "delta")
 
     # ------------------------------------------------------------------
     # 3. skip_no_s3_data
     # ------------------------------------------------------------------
 
     def test_skip_no_s3_data(self) -> None:
-        """Tables with no Delta log in S3 should be skipped (returns False)."""
+        """Tables with no Delta log in S3 should be skipped."""
         mock_glue, mock_s3 = self._make_clients()
         mock_s3.head_object.side_effect = _client_error("404")
 
@@ -130,7 +143,7 @@ class TestRegisterGlueTables(unittest.TestCase):
             mod = _load_module()
             result = mod.register_table("bronze_trips", "rideshare-bronze", "rideshare_bronze")
 
-        self.assertFalse(result)
+        self.assertEqual(result, "skipped")
         mock_glue.create_table.assert_not_called()
 
     # ------------------------------------------------------------------
@@ -161,14 +174,15 @@ class TestRegisterGlueTables(unittest.TestCase):
             mod = _load_module()
             result = mod.register_table("dlq_bronze_trips", "rideshare-bronze", "rideshare_bronze")
 
-        self.assertTrue(result)
-        call_kwargs = mock_glue.create_table.call_args.kwargs
-        columns = call_kwargs["TableInput"]["StorageDescriptor"]["Columns"]
+        self.assertEqual(result, "registered")
+        table_input = self._get_table_input(mock_glue)
+        columns = table_input["StorageDescriptor"]["Columns"]
         column_names = [c["Name"] for c in columns]
         self.assertIn("_error_message", column_names)
         self.assertIn("_error_timestamp", column_names)
+        self.assertIn("_ingestion_date", column_names)
 
-        # Standard tables must NOT have DLQ columns
+        # Standard tables must NOT have DLQ columns but must have _ingestion_date
         mock_glue.reset_mock()
         mock_s3.head_object.return_value = {}
         mock_glue.create_table.return_value = {}
@@ -177,11 +191,12 @@ class TestRegisterGlueTables(unittest.TestCase):
             mod2 = _load_module()
             mod2.register_table("bronze_trips", "rideshare-bronze", "rideshare_bronze")
 
-        call_kwargs2 = mock_glue.create_table.call_args.kwargs
-        columns2 = call_kwargs2["TableInput"]["StorageDescriptor"]["Columns"]
+        table_input2 = self._get_table_input(mock_glue)
+        columns2 = table_input2["StorageDescriptor"]["Columns"]
         standard_names = [c["Name"] for c in columns2]
         self.assertNotIn("_error_message", standard_names)
         self.assertNotIn("_error_timestamp", standard_names)
+        self.assertIn("_ingestion_date", standard_names)
 
     # ------------------------------------------------------------------
     # 6. layer_routing (uses main → ensure_database_exists + register)
@@ -286,6 +301,73 @@ class TestRegisterGlueTables(unittest.TestCase):
         # All 16 create_table calls should use the custom database name
         for call in mock_glue.create_table.call_args_list:
             self.assertEqual(call.kwargs["DatabaseName"], "myproject_bronze")
+
+    # ------------------------------------------------------------------
+    # 11. table_has_no_partition_keys
+    # ------------------------------------------------------------------
+
+    def test_table_has_no_partition_keys(self) -> None:
+        """Table input should not have PartitionKeys (DeltaCatalog reads from Delta log)."""
+        mock_glue, mock_s3 = self._make_clients()
+
+        with self._patch_clients(mock_glue, mock_s3):
+            mod = _load_module()
+            mod.register_table("bronze_trips", "rideshare-bronze", "rideshare_bronze")
+
+        table_input = self._get_table_input(mock_glue)
+        self.assertNotIn("PartitionKeys", table_input)
+
+    # ------------------------------------------------------------------
+    # 12. table_uses_parquet_format
+    # ------------------------------------------------------------------
+
+    def test_table_uses_parquet_format(self) -> None:
+        """StorageDescriptor should use Parquet InputFormat/OutputFormat/SerDe."""
+        mock_glue, mock_s3 = self._make_clients()
+
+        with self._patch_clients(mock_glue, mock_s3):
+            mod = _load_module()
+            mod.register_table("bronze_trips", "rideshare-bronze", "rideshare_bronze")
+
+        table_input = self._get_table_input(mock_glue)
+        sd = table_input["StorageDescriptor"]
+        self.assertEqual(
+            sd["InputFormat"],
+            "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+        )
+        self.assertEqual(
+            sd["OutputFormat"],
+            "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+        )
+        self.assertEqual(
+            sd["SerdeInfo"]["SerializationLibrary"],
+            "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe",
+        )
+
+    # ------------------------------------------------------------------
+    # 13. layer_routing_all_existing
+    # ------------------------------------------------------------------
+
+    def test_layer_routing_all_existing(self) -> None:
+        """main() should count updated tables when all already exist."""
+        mock_glue, mock_s3 = self._make_clients()
+        mock_glue.create_table.side_effect = _client_error("AlreadyExistsException")
+
+        with self._patch_clients(mock_glue, mock_s3):
+            mod = _load_module()
+
+            import sys as _sys
+
+            original_argv = _sys.argv
+            try:
+                _sys.argv = ["register-glue-tables.py", "--layer", "bronze"]
+                code = mod.main()
+            finally:
+                _sys.argv = original_argv
+
+        self.assertEqual(code, 0)
+        self.assertEqual(mock_glue.create_table.call_count, 16)
+        self.assertEqual(mock_glue.update_table.call_count, 16)
 
 
 if __name__ == "__main__":
