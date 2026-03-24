@@ -224,11 +224,11 @@ jobs:
           done
 
           # 6. Release unassociated EIPs without a Name tag (ALB controller artifacts)
-          EIPS=$(aws ec2 describe-addresses \
-            --query 'Addresses[?AssociationId==`null`].[AllocationId,Tags]' --output json)
-          echo "$EIPS" | jq -c '.[]' 2>/dev/null | while read -r EIP_ENTRY; do
+          aws ec2 describe-addresses --output json \
+            | jq -c '.Addresses[] | select(.AssociationId == null) | [.AllocationId, (.Tags // [])]' \
+            | while read -r EIP_ENTRY; do
             ALLOC_ID=$(echo "$EIP_ENTRY" | jq -r '.[0]')
-            HAS_NAME=$(echo "$EIP_ENTRY" | jq -r '.[1] // [] | map(select(.Key=="Name")) | length')
+            HAS_NAME=$(echo "$EIP_ENTRY" | jq -r '.[1] | map(select(.Key=="Name")) | length')
             if [ "$HAS_NAME" = "0" ]; then
               aws ec2 release-address --allocation-id "$ALLOC_ID" \
                 && echo "Released EIP: $ALLOC_ID" \
