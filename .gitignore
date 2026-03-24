@@ -68,3 +68,7 @@ todo.md
 
 # Diagram iteration artifacts
 docs/diagrams/.iterations/
+
+# Generated diagram PNGs (re-exported from .excalidraw source files)
+docs/diagrams/**/*.png
+docs/**/*.png
