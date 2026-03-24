@@ -286,9 +286,24 @@ resource "aws_iam_role_policy" "github_actions_ec2" {
           "ec2:DescribeAvailabilityZones",
           "ec2:DescribeLaunchTemplates",
           "ec2:DescribeLaunchTemplateVersions",
-          "ec2:DescribeVolumes"
+          "ec2:DescribeVolumes",
+          "ec2:DescribeAddresses"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "EC2CleanupOrphans"
+        Effect = "Allow"
+        Action = [
+          "ec2:ReleaseAddress",
+          "ec2:DeleteSecurityGroup"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = "us-east-1"
+          }
+        }
       },
       {
         Sid    = "LaunchTemplateManage"
@@ -347,9 +362,9 @@ resource "aws_iam_role_policy" "github_actions_route53" {
   })
 }
 
-# ELB Describe Policy (required by deploy workflow to get ALB hosted zone ID)
+# ELB Manage Policy (required by deploy workflow to get ALB hosted zone ID, and teardown to clean up orphaned ALBs)
 resource "aws_iam_role_policy" "github_actions_elb" {
-  name = "elb-describe"
+  name = "elb-manage"
   role = aws_iam_role.github_actions.id
 
   policy = jsonencode({
@@ -358,7 +373,14 @@ resource "aws_iam_role_policy" "github_actions_elb" {
       {
         Effect = "Allow"
         Action = [
-          "elasticloadbalancing:DescribeLoadBalancers"
+          "elasticloadbalancing:DescribeLoadBalancers",
+          "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:DescribeListeners",
+          "elasticloadbalancing:DescribeTags",
+          "elasticloadbalancing:DeleteLoadBalancer",
+          "elasticloadbalancing:DeleteTargetGroup",
+          "elasticloadbalancing:DeleteListener",
+          "elasticloadbalancing:DeregisterTargets"
         ]
         Resource = "*"
       }
@@ -537,6 +559,21 @@ resource "aws_iam_role_policy" "github_actions_glue" {
         ]
       }
     ]
+  })
+}
+
+# SES Send Policy (required by teardown-platform.yml to alert on failures)
+resource "aws_iam_role_policy" "github_actions_ses" {
+  name = "ses-send"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ses:SendEmail"]
+      Resource = "*"
+    }]
   })
 }
 

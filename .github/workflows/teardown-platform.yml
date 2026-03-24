@@ -145,6 +145,111 @@ jobs:
         working-directory: infrastructure/terraform/platform
         run: terraform destroy -auto-approve
 
+      - name: Clean Up Orphaned ALB Resources
+        if: always()
+        run: |
+          echo "Cleaning up ALB resources created by AWS Load Balancer Controller..."
+
+          # 1. Find ALBs tagged by the ALB controller for our cluster
+          ALL_ALBS=$(aws elbv2 describe-load-balancers \
+            --query 'LoadBalancers[*].LoadBalancerArn' --output text)
+
+          if [ -z "$ALL_ALBS" ]; then
+            echo "No ALBs found in account"
+          else
+            CLUSTER_ALBS=""
+            for ALB_ARN in $ALL_ALBS; do
+              TAGS=$(aws elbv2 describe-tags --resource-arns "$ALB_ARN" \
+                --query "TagDescriptions[0].Tags[?Key=='elbv2.k8s.aws/cluster' && Value=='rideshare-eks'].Value" \
+                --output text 2>/dev/null)
+              if [ -n "$TAGS" ]; then
+                CLUSTER_ALBS="$CLUSTER_ALBS $ALB_ARN"
+              fi
+            done
+
+            if [ -z "$CLUSTER_ALBS" ]; then
+              echo "No ALBs tagged for rideshare-eks cluster"
+            else
+              for ALB_ARN in $CLUSTER_ALBS; do
+                echo "Processing ALB: $ALB_ARN"
+
+                # 2. Delete listeners
+                LISTENERS=$(aws elbv2 describe-listeners --load-balancer-arn "$ALB_ARN" \
+                  --query 'Listeners[*].ListenerArn' --output text 2>/dev/null)
+                for LISTENER_ARN in $LISTENERS; do
+                  aws elbv2 delete-listener --listener-arn "$LISTENER_ARN" \
+                    && echo "  Deleted listener: $LISTENER_ARN" \
+                    || echo "  Warning: Failed to delete listener $LISTENER_ARN"
+                done
+
+                # 3. Delete ALB
+                aws elbv2 delete-load-balancer --load-balancer-arn "$ALB_ARN" \
+                  && echo "  Deleted ALB: $ALB_ARN" \
+                  || echo "  Warning: Failed to delete ALB $ALB_ARN"
+              done
+            fi
+          fi
+
+          # 4. Delete target groups tagged for our cluster
+          ALL_TGS=$(aws elbv2 describe-target-groups \
+            --query 'TargetGroups[*].TargetGroupArn' --output text)
+          if [ -n "$ALL_TGS" ]; then
+            for TG_ARN in $ALL_TGS; do
+              TAGS=$(aws elbv2 describe-tags --resource-arns "$TG_ARN" \
+                --query "TagDescriptions[0].Tags[?Key=='elbv2.k8s.aws/cluster' && Value=='rideshare-eks'].Value" \
+                --output text 2>/dev/null)
+              if [ -n "$TAGS" ]; then
+                aws elbv2 delete-target-group --target-group-arn "$TG_ARN" \
+                  && echo "Deleted target group: $TG_ARN" \
+                  || echo "Warning: Failed to delete target group $TG_ARN"
+              fi
+            done
+          fi
+
+          # 5. Wait for ALB ENIs to be released (up to 3 min)
+          echo "Waiting for ALB ENIs to release..."
+          for i in $(seq 1 18); do
+            ENIS=$(aws ec2 describe-network-interfaces \
+              --filters "Name=description,Values=*k8s-rideshare*" \
+              --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text 2>/dev/null)
+            if [ -z "$ENIS" ]; then
+              echo "All ALB ENIs released"
+              break
+            fi
+            echo "  [${i}0s] ENIs still present: $ENIS"
+            if [ "$i" -eq 18 ]; then
+              echo "Warning: ENIs not released after 3 minutes, continuing"
+            fi
+            sleep 10
+          done
+
+          # 6. Release unassociated EIPs without a Name tag (ALB controller artifacts)
+          EIPS=$(aws ec2 describe-addresses \
+            --query 'Addresses[?AssociationId==`null`].[AllocationId,Tags]' --output json)
+          echo "$EIPS" | jq -c '.[]' 2>/dev/null | while read -r EIP_ENTRY; do
+            ALLOC_ID=$(echo "$EIP_ENTRY" | jq -r '.[0]')
+            HAS_NAME=$(echo "$EIP_ENTRY" | jq -r '.[1] // [] | map(select(.Key=="Name")) | length')
+            if [ "$HAS_NAME" = "0" ]; then
+              aws ec2 release-address --allocation-id "$ALLOC_ID" \
+                && echo "Released EIP: $ALLOC_ID" \
+                || echo "Warning: Failed to release EIP $ALLOC_ID"
+            fi
+          done
+
+          # 7. Delete orphaned security groups tagged by ALB controller
+          SG_IDS=$(aws ec2 describe-security-groups \
+            --filters "Name=tag-key,Values=elbv2.k8s.aws/cluster" \
+            --query 'SecurityGroups[*].GroupId' --output text 2>/dev/null)
+          if [ -n "$SG_IDS" ]; then
+            for SG_ID in $SG_IDS; do
+              aws ec2 delete-security-group --group-id "$SG_ID" \
+                && echo "Deleted security group: $SG_ID" \
+                || echo "Warning: Failed to delete security group $SG_ID"
+            done
+          fi
+
+          echo "ALB cleanup complete"
+
       - name: Clean Up Orphaned EBS Volumes
         run: |
           echo "Deleting orphaned EBS volumes from destroyed EKS cluster..."
@@ -252,6 +357,32 @@ jobs:
           echo ""
           echo "Cost reduced to foundation-only: ~$8/month"
           echo "================================"
+
+      - name: Alert on teardown failure
+        if: failure()
+        run: |
+          echo "Teardown failed — sending alert email..."
+
+          ADMIN_SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id "rideshare/admin-user" \
+            --query "SecretString" --output text 2>/dev/null) || { echo "Warning: Could not fetch admin secret, skipping alert"; exit 0; }
+          ADMIN_EMAIL=$(echo "$ADMIN_SECRET" | jq -r '.EMAIL // empty')
+          if [ -z "$ADMIN_EMAIL" ]; then
+            echo "Warning: No admin email found, skipping alert"
+            exit 0
+          fi
+
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          aws ses send-email \
+            --from "noreply@ridesharing.portfolio.andresbrocco.com" \
+            --destination "ToAddresses=$ADMIN_EMAIL" \
+            --message "{
+              \"Subject\": {\"Data\": \"Rideshare Platform Teardown Failed\"},
+              \"Body\": {\"Text\": {\"Data\": \"The teardown workflow failed. Orphaned resources may still be running and incurring costs.\n\nWorkflow run: $RUN_URL\n\nPlease investigate and re-run the teardown or manually clean up resources.\"}}
+            }" \
+            && echo "Alert email sent to admin" \
+            || echo "Warning: Failed to send alert email"
 
       - name: Clean up session
         if: always()
