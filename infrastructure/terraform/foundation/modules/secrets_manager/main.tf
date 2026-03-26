@@ -87,10 +87,10 @@ resource "aws_secretsmanager_secret_version" "api_key" {
   })
 }
 
-# Secret: rideshare/core (merges kafka + redis + schema-registry)
+# Secret: rideshare/core (merges kafka + redis + schema-registry + grafana)
 resource "aws_secretsmanager_secret" "core" {
   name        = "${var.project_name}/core"
-  description = "Core services credentials (Kafka, Redis, Schema Registry)"
+  description = "Core services credentials (Kafka, Redis, Schema Registry, Grafana)"
 
   tags = {
     Name = "${var.project_name}/core"
@@ -106,6 +106,8 @@ resource "aws_secretsmanager_secret_version" "core" {
     REDIS_PASSWORD           = random_password.redis_password.result
     SCHEMA_REGISTRY_USER     = "schema-registry"
     SCHEMA_REGISTRY_PASSWORD = random_password.schema_registry_password.result
+    GRAFANA_ADMIN_USER       = "admin"
+    GRAFANA_ADMIN_PASSWORD   = random_password.grafana_admin_password.result
   })
 }
 
@@ -135,25 +137,6 @@ resource "aws_secretsmanager_secret_version" "data_pipeline" {
     API_SECRET_KEY              = random_password.airflow_api_secret.result
     ADMIN_USERNAME              = "admin"
     ADMIN_PASSWORD              = random_password.airflow_admin_password.result
-  })
-}
-
-# Secret: rideshare/monitoring (renamed from grafana)
-resource "aws_secretsmanager_secret" "monitoring" {
-  name        = "${var.project_name}/monitoring"
-  description = "Monitoring credentials (Grafana)"
-
-  tags = {
-    Name = "${var.project_name}/monitoring"
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "monitoring" {
-  secret_id = aws_secretsmanager_secret.monitoring.id
-
-  secret_string = jsonencode({
-    ADMIN_USER     = "admin"
-    ADMIN_PASSWORD = random_password.grafana_admin_password.result
   })
 }
 
@@ -221,28 +204,6 @@ resource "aws_secretsmanager_secret_version" "admin_user" {
     EMAIL    = var.admin_email
     PASSWORD = random_password.admin_user_password.result
   })
-}
-
-# Secret: rideshare/llm-api-key
-resource "aws_secretsmanager_secret" "llm_api_key" {
-  name        = "${var.project_name}/llm-api-key"
-  description = "LLM provider API key for ai-chat Lambda"
-
-  tags = {
-    Name = "${var.project_name}/llm-api-key"
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "llm_api_key" {
-  secret_id = aws_secretsmanager_secret.llm_api_key.id
-
-  secret_string = jsonencode({
-    LLM_API_KEY = "placeholder_set_real_key_in_production"
-  })
-
-  lifecycle {
-    ignore_changes = [secret_string]
-  }
 }
 
 # Secret: rideshare/llm-api-keys (multi-provider)

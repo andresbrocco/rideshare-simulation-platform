@@ -12,11 +12,10 @@ Generates all production credentials for the rideshare platform and stores them 
 
 ## Key Concepts
 
-**Secret grouping**: Credentials are merged into logical functional groups rather than one secret per service. The three primary groups are:
+**Secret grouping**: Credentials are merged into logical functional groups rather than one secret per service. The primary groups are:
 - `{project}/api-key` — simulation service API key
-- `{project}/core` — Kafka, Redis, Schema Registry credentials
+- `{project}/core` — Kafka, Redis, Schema Registry, and Grafana credentials
 - `{project}/data-pipeline` — MinIO, PostgreSQL (Airflow + Metastore), and all Airflow internal secrets (Fernet key, JWT secret, API secret, admin password)
-- `{project}/monitoring` — Grafana admin credentials
 - `{project}/rds` — RDS master credentials and endpoint
 
 This grouping limits the number of Secrets Manager API calls a pod must make at startup, since each secret fetch has a cost and latency.

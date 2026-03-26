@@ -18,7 +18,7 @@
 | `SES_FROM_NAME` | No | Sender display name for welcome emails (defaults to `Rideshare Platform`). |
 | `SES_REPLY_TO_ADDRESS` | No | Reply-to address for welcome emails. Omitted from SES request if not set. |
 | `GRAFANA_URL` | No | Grafana base URL for visitor provisioning (defaults to `http://localhost:3001`). |
-| `GRAFANA_ADMIN_PASSWORD` | No | Grafana admin password override; resolved from `rideshare/monitoring` secret when absent. |
+| `GRAFANA_ADMIN_PASSWORD` | No | Grafana admin password override; resolved from `rideshare/core` secret when absent. |
 | `AIRFLOW_URL` | No | Airflow base URL for visitor provisioning (defaults to `http://localhost:8082`). |
 | `AIRFLOW_ADMIN_USER` | No | Airflow admin username for provisioning (defaults to `admin`). |
 | `AIRFLOW_ADMIN_PASSWORD` | No | Airflow admin password override; resolved from `rideshare/data-pipeline` secret when absent. |
@@ -33,7 +33,7 @@
 |---|---|
 | `rideshare/api-key` | API key validated on all authenticated actions. Stored as plain string or `{"API_KEY": "..."}`. Also used as the Simulation API admin key during visitor provisioning. |
 | `rideshare/github-pat` | GitHub Personal Access Token for workflow dispatch and status polling. Stored as plain string or `{"GITHUB_PAT": "..."}`. |
-| `rideshare/monitoring` | JSON-encoded secret containing `ADMIN_PASSWORD` for Grafana admin auth during visitor provisioning. |
+| `rideshare/core` | JSON-encoded secret containing `GRAFANA_ADMIN_PASSWORD` for Grafana admin auth during visitor provisioning. |
 | `rideshare/data-pipeline` | JSON-encoded secret containing `AIRFLOW_ADMIN_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` for visitor provisioning. |
 
 ### SSM Parameter Store

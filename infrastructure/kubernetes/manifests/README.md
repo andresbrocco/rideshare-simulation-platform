@@ -118,8 +118,8 @@ Secrets are managed by External Secrets Operator (ESO), synced from LocalStack S
 | `FERNET_KEY` | `rideshare/data-pipeline` | `FERNET_KEY` |
 | `AIRFLOW_ADMIN_PASSWORD` | `rideshare/data-pipeline` | `ADMIN_PASSWORD` |
 | `AIRFLOW_JWT_SECRET` | `rideshare/data-pipeline` | `JWT_SECRET` |
-| `GRAFANA_ADMIN_USER` | `rideshare/monitoring` | `ADMIN_USER` |
-| `GRAFANA_ADMIN_PASSWORD` | `rideshare/monitoring` | `ADMIN_PASSWORD` |
+| `GRAFANA_ADMIN_USER` | `rideshare/core` | `GRAFANA_ADMIN_USER` |
+| `GRAFANA_ADMIN_PASSWORD` | `rideshare/core` | `GRAFANA_ADMIN_PASSWORD` |
 | `KAFKA_SASL_USERNAME` | `rideshare/core` | `KAFKA_SASL_USERNAME` |
 | `KAFKA_SASL_PASSWORD` | `rideshare/core` | `KAFKA_SASL_PASSWORD` |
 | `KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` | `rideshare/core` | `SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` |

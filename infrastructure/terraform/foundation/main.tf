@@ -175,11 +175,11 @@ module "lambda_auth_deploy" {
     LOGIN_TABLE_NAME         = aws_dynamodb_table.visitor_logins.name
   }
 
-  # Grant read access to API key, GitHub PAT, monitoring, and data pipeline secrets
+  # Grant read access to API key, GitHub PAT, core, and data pipeline secrets
   secrets_arns = [
     module.secrets_manager.secret_arns["api_key"],
     module.secrets_manager.secret_arns["github_pat"],
-    module.secrets_manager.secret_arns["monitoring"],
+    module.secrets_manager.secret_arns["core"],
     module.secrets_manager.secret_arns["data_pipeline"],
     module.secrets_manager.secret_arns["admin_user"],
   ]
@@ -242,7 +242,6 @@ module "lambda_ai_chat" {
   }
 
   secrets_arns = [
-    module.secrets_manager.secret_arns["llm_api_key"],
     module.secrets_manager.secret_arns["llm_api_keys"],
   ]
 

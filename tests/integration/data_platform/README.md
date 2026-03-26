@@ -20,8 +20,8 @@ Credentials are **not pre-set** in `.env` or the shell environment. The `load_cr
 | `SCHEMA_REGISTRY_PASSWORD` | `rideshare/core` | Schema Registry health check |
 | `AIRFLOW_ADMIN_USERNAME` | `rideshare/data-pipeline` | Airflow API client |
 | `AIRFLOW_ADMIN_PASSWORD` | `rideshare/data-pipeline` | Airflow API client |
-| `GF_SECURITY_ADMIN_USER` | `rideshare/monitoring` | Grafana API client |
-| `GF_SECURITY_ADMIN_PASSWORD` | `rideshare/monitoring` | Grafana API client |
+| `GF_SECURITY_ADMIN_USER` | `rideshare/core` | Grafana API client |
+| `GF_SECURITY_ADMIN_PASSWORD` | `rideshare/core` | Grafana API client |
 
 For the event producer script only (not managed by fixtures):
 

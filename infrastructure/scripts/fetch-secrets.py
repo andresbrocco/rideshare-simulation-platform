@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fetch secrets from Secrets Manager and write grouped env files.
 
-Reads 4 consolidated rideshare/* secrets from AWS Secrets Manager (LocalStack
+Reads 3 consolidated rideshare/* secrets from AWS Secrets Manager (LocalStack
 or real AWS) and writes grouped environment files for Docker Compose profiles:
   /secrets/core.env          - Simulation runtime services
   /secrets/data-pipeline.env - ETL, ingestion, orchestration
@@ -50,7 +50,7 @@ PROFILE_SECRETS: dict[str, list[str]] = {
         "rideshare/data-pipeline",
     ],
     "monitoring.env": [
-        "rideshare/monitoring",
+        "rideshare/core",
     ],
 }
 
@@ -67,8 +67,13 @@ AIRFLOW_KEY_MAPPING: dict[str, str] = {
 
 # Grafana keys get the GF_SECURITY_ prefix for Grafana environment variables.
 GRAFANA_KEY_MAPPING: dict[str, str] = {
-    "ADMIN_USER": "GF_SECURITY_ADMIN_USER",
-    "ADMIN_PASSWORD": "GF_SECURITY_ADMIN_PASSWORD",
+    "GRAFANA_ADMIN_USER": "GF_SECURITY_ADMIN_USER",
+    "GRAFANA_ADMIN_PASSWORD": "GF_SECURITY_ADMIN_PASSWORD",
+}
+
+# When a profile reads from a multi-purpose secret, filter to only the keys it needs.
+PROFILE_KEY_FILTER: dict[str, set[str]] = {
+    "monitoring.env": {"GF_SECURITY_ADMIN_USER", "GF_SECURITY_ADMIN_PASSWORD"},
 }
 
 
@@ -110,16 +115,13 @@ def transform_keys(secret_name: str, fields: dict[str, str]) -> dict[str, str]:
     """Transform secret field keys to env var names.
 
     Airflow keys in rideshare/data-pipeline get flattened to double-underscore format.
-    Grafana keys in rideshare/monitoring get the GF_SECURITY_ prefix.
+    Grafana keys (GRAFANA_ADMIN_*) get the GF_SECURITY_ prefix.
     All other secrets keep their original key names (pre-disambiguated at source).
     """
     if secret_name == "rideshare/data-pipeline":
         return {AIRFLOW_KEY_MAPPING.get(key, key): value for key, value in fields.items()}
 
-    if secret_name == "rideshare/monitoring":
-        return {GRAFANA_KEY_MAPPING.get(key, key): value for key, value in fields.items()}
-
-    return fields
+    return {GRAFANA_KEY_MAPPING.get(key, key): value for key, value in fields.items()}
 
 
 def format_env_line(key: str, value: str) -> str:
@@ -196,6 +198,10 @@ def main() -> int:
         for secret_name in secret_names:
             transformed = transform_keys(secret_name, fetched[secret_name])
             env_vars.update(transformed)
+
+        allowed_keys = PROFILE_KEY_FILTER.get(profile_name)
+        if allowed_keys is not None:
+            env_vars = {k: v for k, v in env_vars.items() if k in allowed_keys}
 
         if not write_env_file(output_dir / profile_name, env_vars):
             write_failed += 1

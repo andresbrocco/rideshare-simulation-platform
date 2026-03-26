@@ -1,6 +1,6 @@
 """Credential loading utility for integration tests.
 
-Fetches 4 consolidated rideshare/* secrets from LocalStack Secrets Manager
+Fetches 3 consolidated rideshare/* secrets from LocalStack Secrets Manager
 and maps them to environment variable names using the same key transforms as
 infrastructure/scripts/fetch-secrets.py (the source of truth).
 
@@ -31,7 +31,6 @@ _ALL_SECRET_NAMES = [
     "rideshare/api-key",
     "rideshare/core",
     "rideshare/data-pipeline",
-    "rideshare/monitoring",
 ]
 
 # Key transforms copied from infrastructure/scripts/fetch-secrets.py.
@@ -46,8 +45,8 @@ _AIRFLOW_KEY_MAPPING: dict[str, str] = {
 }
 
 _GRAFANA_KEY_MAPPING: dict[str, str] = {
-    "ADMIN_USER": "GF_SECURITY_ADMIN_USER",
-    "ADMIN_PASSWORD": "GF_SECURITY_ADMIN_PASSWORD",
+    "GRAFANA_ADMIN_USER": "GF_SECURITY_ADMIN_USER",
+    "GRAFANA_ADMIN_PASSWORD": "GF_SECURITY_ADMIN_PASSWORD",
 }
 
 
@@ -56,10 +55,7 @@ def _transform_keys(secret_name: str, fields: dict[str, str]) -> dict[str, str]:
     if secret_name == "rideshare/data-pipeline":
         return {_AIRFLOW_KEY_MAPPING.get(key, key): value for key, value in fields.items()}
 
-    if secret_name == "rideshare/monitoring":
-        return {_GRAFANA_KEY_MAPPING.get(key, key): value for key, value in fields.items()}
-
-    return fields
+    return {_GRAFANA_KEY_MAPPING.get(key, key): value for key, value in fields.items()}
 
 
 def fetch_all_credentials(

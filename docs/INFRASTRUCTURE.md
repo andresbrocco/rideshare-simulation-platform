@@ -139,9 +139,8 @@ All credentials are sourced from Secrets Manager, not from static `.env` files.
 | Secret Name | Written To | Contains |
 |------------|-----------|---------|
 | `rideshare/api-key` | `/secrets/core.env` | `API_KEY` |
-| `rideshare/core` | `/secrets/core.env` | `KAFKA_SASL_*`, `REDIS_PASSWORD`, `SCHEMA_REGISTRY_*` |
+| `rideshare/core` | `/secrets/core.env`, `/secrets/monitoring.env` | `KAFKA_SASL_*`, `REDIS_PASSWORD`, `SCHEMA_REGISTRY_*`, `GRAFANA_ADMIN_*` → `GF_SECURITY_*` |
 | `rideshare/data-pipeline` | `/secrets/data-pipeline.env` | `MINIO_ROOT_*`, `POSTGRES_*`, `AIRFLOW__*`, `FERNET_KEY` |
-| `rideshare/monitoring` | `/secrets/monitoring.env` | `GF_SECURITY_ADMIN_USER`, `GF_SECURITY_ADMIN_PASSWORD` |
 | `rideshare/github-pat` | (Secrets Manager only) | `GITHUB_PAT` used by Lambda |
 
 ### Production Secret Management

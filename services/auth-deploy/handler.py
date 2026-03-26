@@ -2010,8 +2010,8 @@ def handle_complete_teardown(api_key: str) -> tuple[int, dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 # Secret key used to retrieve the Grafana admin password for provisioning.
-# The rideshare/monitoring secret is JSON-encoded and contains ADMIN_PASSWORD.
-SECRET_GRAFANA_ADMIN_PASSWORD = "rideshare/monitoring"
+# The rideshare/core secret is JSON-encoded and contains GRAFANA_ADMIN_PASSWORD.
+SECRET_GRAFANA_ADMIN_PASSWORD = "rideshare/core"
 
 # Secret key used to retrieve Airflow and MinIO credentials for provisioning.
 # The rideshare/data-pipeline secret is JSON-encoded and contains
@@ -2153,10 +2153,10 @@ def _provision_grafana(
     if not admin_password:
         try:
             secret_value = get_secret(SECRET_GRAFANA_ADMIN_PASSWORD)
-            # rideshare/monitoring is a JSON-encoded secret containing
-            # ADMIN_USER and ADMIN_PASSWORD fields.
+            # rideshare/core is a JSON-encoded secret containing
+            # GRAFANA_ADMIN_USER and GRAFANA_ADMIN_PASSWORD fields.
             secret_data: dict[str, str] = json.loads(secret_value)
-            admin_password = secret_data["ADMIN_PASSWORD"]
+            admin_password = secret_data["GRAFANA_ADMIN_PASSWORD"]
         except Exception:
             admin_password = "admin"
 

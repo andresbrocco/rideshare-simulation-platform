@@ -20,7 +20,7 @@ flowchart TB
 
     subgraph PROD["Production — EKS"]
         direction LR
-        SM["AWS Secrets Manager<br/>rideshare/api-key<br/>rideshare/core<br/>rideshare/data-pipeline<br/>rideshare/monitoring<br/>(real random passwords)"]
+        SM["AWS Secrets Manager<br/>rideshare/api-key<br/>rideshare/core<br/>rideshare/data-pipeline<br/>(real random passwords)"]
         SS["SecretStore CRD<br/>points ESO at<br/>AWS Secrets Manager<br/>(node role credentials)"]
         ES["ExternalSecret CRDs<br/>api-keys-sync → 1 key<br/>app-credentials-sync → 14 keys"]
         KS["Kubernetes Secrets<br/>api-keys<br/>app-credentials"]

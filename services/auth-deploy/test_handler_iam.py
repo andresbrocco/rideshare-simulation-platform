@@ -2,8 +2,8 @@
 
 Tests validate:
 - SECRET_GRAFANA_ADMIN_PASSWORD constant matches the Terraform-created secret name
-  (rideshare/monitoring), not the old rideshare/grafana-admin-password value.
-- _provision_grafana parses the JSON-encoded monitoring secret to extract ADMIN_PASSWORD.
+  (rideshare/core), not the old rideshare/grafana-admin-password value.
+- _provision_grafana parses the JSON-encoded core secret to extract GRAFANA_ADMIN_PASSWORD.
 - _provision_grafana falls back to the GRAFANA_ADMIN_PASSWORD env var without calling
   get_secret when the env var is set.
 
@@ -52,33 +52,36 @@ def _load_handler() -> types.ModuleType:
 
 @pytest.mark.unit
 def test_secret_grafana_constant_matches_terraform() -> None:
-    """SECRET_GRAFANA_ADMIN_PASSWORD must equal 'rideshare/monitoring'.
+    """SECRET_GRAFANA_ADMIN_PASSWORD must equal 'rideshare/core'.
 
-    Terraform creates the monitoring secret under the key rideshare/monitoring
-    (not rideshare/grafana-admin-password).  The constant in handler.py must
+    Terraform stores Grafana credentials in rideshare/core (merged from the
+    former rideshare/monitoring secret).  The constant in handler.py must
     match so that get_secret resolves the correct ARN.
     """
     module = _load_handler()
     assert (
-        module.SECRET_GRAFANA_ADMIN_PASSWORD == "rideshare/monitoring"
-    ), f"Expected 'rideshare/monitoring', got: {module.SECRET_GRAFANA_ADMIN_PASSWORD!r}"
+        module.SECRET_GRAFANA_ADMIN_PASSWORD == "rideshare/core"
+    ), f"Expected 'rideshare/core', got: {module.SECRET_GRAFANA_ADMIN_PASSWORD!r}"
 
 
 @pytest.mark.unit
 def test_provision_grafana_parses_monitoring_secret() -> None:
-    """_provision_grafana must parse ADMIN_PASSWORD from the JSON monitoring secret.
+    """_provision_grafana must parse GRAFANA_ADMIN_PASSWORD from the JSON core secret.
 
-    The rideshare/monitoring secret is JSON-encoded and contains multiple
-    fields (ADMIN_USER, ADMIN_PASSWORD, …).  _provision_grafana must parse
-    the JSON and extract ADMIN_PASSWORD to build the Basic auth header.
+    The rideshare/core secret is JSON-encoded and contains multiple
+    fields including GRAFANA_ADMIN_USER and GRAFANA_ADMIN_PASSWORD.
+    _provision_grafana must parse the JSON and extract GRAFANA_ADMIN_PASSWORD
+    to build the Basic auth header.
 
     The admin_auth_header passed to provision_viewer must be base64 of
     'admin:supersecret'.
     """
     module = _load_handler()
 
-    # JSON secret returned by Secrets Manager for rideshare/monitoring
-    monitoring_secret_json = json.dumps({"ADMIN_USER": "admin", "ADMIN_PASSWORD": "supersecret"})
+    # JSON secret returned by Secrets Manager for rideshare/core
+    monitoring_secret_json = json.dumps(
+        {"GRAFANA_ADMIN_USER": "admin", "GRAFANA_ADMIN_PASSWORD": "supersecret"}
+    )
 
     captured_calls: list[dict[str, Any]] = []
 

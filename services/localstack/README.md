@@ -56,9 +56,8 @@ All platform credentials live under the `rideshare/*` namespace in Secrets Manag
 | Secret Name | Keys |
 |-------------|------|
 | `rideshare/api-key` | `API_KEY` |
-| `rideshare/core` | `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `REDIS_PASSWORD`, `SCHEMA_REGISTRY_USER`, `SCHEMA_REGISTRY_PASSWORD` |
+| `rideshare/core` | `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `REDIS_PASSWORD`, `SCHEMA_REGISTRY_USER`, `SCHEMA_REGISTRY_PASSWORD`, `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` |
 | `rideshare/data-pipeline` | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `POSTGRES_AIRFLOW_USER`, `POSTGRES_AIRFLOW_PASSWORD`, `POSTGRES_METASTORE_USER`, `POSTGRES_METASTORE_PASSWORD`, `FERNET_KEY`, `INTERNAL_API_SECRET_KEY`, `JWT_SECRET`, `API_SECRET_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` |
-| `rideshare/monitoring` | `ADMIN_USER`, `ADMIN_PASSWORD` |
 | `rideshare/github-pat` | `GITHUB_PAT` |
 
 ### Lambda Functions Deployed

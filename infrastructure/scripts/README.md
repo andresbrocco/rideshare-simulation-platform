@@ -129,9 +129,8 @@ These secrets are seeded by `seed-secrets.py` and fetched by `fetch-secrets.py`:
 | Secret Name | Keys Stored | Written To |
 |---|---|---|
 | `rideshare/api-key` | `API_KEY` | `core.env` |
-| `rideshare/core` | `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `REDIS_PASSWORD`, `SCHEMA_REGISTRY_USER`, `SCHEMA_REGISTRY_PASSWORD` | `core.env` |
+| `rideshare/core` | `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `REDIS_PASSWORD`, `SCHEMA_REGISTRY_USER`, `SCHEMA_REGISTRY_PASSWORD`, `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | `core.env`, `monitoring.env` (filtered to `GF_SECURITY_*`) |
 | `rideshare/data-pipeline` | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `POSTGRES_AIRFLOW_*`, `POSTGRES_METASTORE_*`, Airflow crypto keys, `ADMIN_USERNAME/PASSWORD` | `data-pipeline.env` |
-| `rideshare/monitoring` | `ADMIN_USER`, `ADMIN_PASSWORD` (becomes `GF_SECURITY_*`) | `monitoring.env` |
 | `rideshare/github-pat` | `GITHUB_PAT` | _(not written to env files)_ |
 
 ### Delta Table Inventory

@@ -65,6 +65,8 @@ SECRETS: dict[str, dict[str, str]] = {
         "REDIS_PASSWORD": "admin",
         "SCHEMA_REGISTRY_USER": "admin",
         "SCHEMA_REGISTRY_PASSWORD": "admin",
+        "GRAFANA_ADMIN_USER": "admin",
+        "GRAFANA_ADMIN_PASSWORD": "admin",
     },
     "rideshare/data-pipeline": {
         "MINIO_ROOT_USER": "admin",
@@ -78,10 +80,6 @@ SECRETS: dict[str, dict[str, str]] = {
         "JWT_SECRET": AIRFLOW_JWT_SECRET,
         "API_SECRET_KEY": AIRFLOW_API_SECRET_KEY,
         "ADMIN_USERNAME": "admin",
-        "ADMIN_PASSWORD": "admin",
-    },
-    "rideshare/monitoring": {
-        "ADMIN_USER": "admin",
         "ADMIN_PASSWORD": "admin",
     },
     "rideshare/admin-user": {

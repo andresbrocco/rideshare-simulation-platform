@@ -117,12 +117,12 @@ jobs:
               'ADMIN_PASSWORD': 'AIRFLOW_ADMIN_PASSWORD',
           }
           GRAFANA_MAPPING = {
-              'ADMIN_USER': 'GF_SECURITY_ADMIN_USER',
-              'ADMIN_PASSWORD': 'GF_SECURITY_ADMIN_PASSWORD',
+              'GRAFANA_ADMIN_USER': 'GF_SECURITY_ADMIN_USER',
+              'GRAFANA_ADMIN_PASSWORD': 'GF_SECURITY_ADMIN_PASSWORD',
           }
           secrets = [
               'rideshare/api-key', 'rideshare/core',
-              'rideshare/data-pipeline', 'rideshare/monitoring',
+              'rideshare/data-pipeline',
           ]
           env_file = os.environ['GITHUB_ENV']
           with open(env_file, 'a') as f:
@@ -131,7 +131,7 @@ jobs:
                   fields = json.loads(resp['SecretString'])
                   if name == 'rideshare/data-pipeline':
                       fields = {AIRFLOW_MAPPING.get(k, k): v for k, v in fields.items()}
-                  elif name == 'rideshare/monitoring':
+                  else:
                       fields = {GRAFANA_MAPPING.get(k, k): v for k, v in fields.items()}
                   for k, v in fields.items():
                       f.write(f'{k}={v}\n')
