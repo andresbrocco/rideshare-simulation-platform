@@ -1,13 +1,13 @@
 {
   "type": "excalidraw",
   "version": 2,
-  "source": "diagrams",
+  "source": "https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor",
   "elements": [
     {
       "id": "title-text",
       "type": "text",
-      "x": 470,
-      "y": 10,
+      "x": 402.6783289612311,
+      "y": -1.505865,
       "width": 300,
       "height": 35,
       "angle": 0,
@@ -23,11 +23,11 @@
       "index": "a0",
       "roundness": null,
       "seed": 1000,
-      "version": 1,
-      "versionNonce": 1000,
+      "version": 101,
+      "versionNonce": 1597505613,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397403087,
       "link": null,
       "locked": false,
       "text": "CI/CD Pipeline Flow",
@@ -43,8 +43,8 @@
     {
       "id": "push-circle",
       "type": "ellipse",
-      "x": 500,
-      "y": 65,
+      "x": 477.67832899999996,
+      "y": 64.9,
       "width": 150,
       "height": 150,
       "angle": 0,
@@ -60,24 +60,33 @@
       "index": "a1",
       "roundness": null,
       "seed": 1001,
-      "version": 1,
-      "versionNonce": 1001,
+      "version": 36,
+      "versionNonce": 622687811,
       "isDeleted": false,
       "boundElements": [
-        { "id": "push-text", "type": "text" },
-        { "id": "arrow-push-ci", "type": "arrow" },
-        { "id": "arrow-push-lambda", "type": "arrow" }
+        {
+          "id": "push-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-push-ci",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-push-lambda",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774397397830,
       "link": null,
       "locked": false
     },
     {
       "id": "push-text",
       "type": "text",
-      "x": 520,
-      "y": 117,
-      "width": 110,
+      "x": 517.6803317025128,
+      "y": 117.36699141100894,
+      "width": 69.92997741699219,
       "height": 45,
       "angle": 0,
       "strokeColor": "#1e1e1e",
@@ -92,14 +101,14 @@
       "index": "a2",
       "roundness": null,
       "seed": 1002,
-      "version": 1,
-      "versionNonce": 1002,
+      "version": 29,
+      "versionNonce": 167513133,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397397831,
       "link": null,
       "locked": false,
-      "text": "Push to main",
+      "text": "Push to\nmain",
       "fontSize": 18,
       "fontFamily": 1,
       "textAlign": "center",
@@ -109,14 +118,13 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "ci-bg",
       "type": "rectangle",
-      "x": 330,
+      "x": 329.6462501266303,
       "y": 270,
       "width": 680,
-      "height": 480,
+      "height": 373.3953771438921,
       "angle": 0,
       "strokeColor": "#1565c0",
       "backgroundColor": "#e3f2fd",
@@ -128,17 +136,24 @@
       "groupIds": [],
       "frameId": null,
       "index": "a3",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1003,
-      "version": 1,
-      "versionNonce": 1003,
+      "version": 120,
+      "versionNonce": 28123587,
       "isDeleted": false,
       "boundElements": [
-        { "id": "arrow-push-ci", "type": "arrow" },
-        { "id": "arrow-ci-build", "type": "arrow" },
-        { "id": "arrow-ci-land", "type": "arrow" }
+        {
+          "id": "arrow-ci-build",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-push-ci",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774397388599,
       "link": null,
       "locked": false
     },
@@ -162,11 +177,16 @@
       "index": "a4",
       "roundness": null,
       "seed": 1004,
-      "version": 1,
-      "versionNonce": 1004,
+      "version": 4,
+      "versionNonce": 1379186723,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [
+        {
+          "id": "arrow-push-ci",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1774397394592,
       "link": null,
       "locked": false,
       "text": "ci.yml -- Automated on push/PR",
@@ -179,12 +199,11 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "lint-box",
       "type": "rectangle",
-      "x": 410,
-      "y": 360,
+      "x": 390.663672,
+      "y": 377.49999999999994,
       "width": 300,
       "height": 170,
       "angle": 0,
@@ -198,28 +217,42 @@
       "groupIds": [],
       "frameId": null,
       "index": "a5",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1005,
-      "version": 1,
-      "versionNonce": 1005,
+      "version": 29,
+      "versionNonce": 904064205,
       "isDeleted": false,
       "boundElements": [
-        { "id": "lint-text", "type": "text" },
-        { "id": "arrow-lint-test", "type": "arrow" },
-        { "id": "arrow-lint-fe", "type": "arrow" },
-        { "id": "arrow-lint-api", "type": "arrow" }
+        {
+          "id": "lint-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-lint-test",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-lint-fe",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-lint-api",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774397361887,
       "link": null,
       "locked": false
     },
     {
       "id": "lint-text",
       "type": "text",
-      "x": 420,
-      "y": 370,
-      "width": 280,
-      "height": 150,
+      "x": 437.77078869921877,
+      "y": 418.74999999999994,
+      "width": 205.7857666015625,
+      "height": 87.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -233,11 +266,11 @@
       "index": "a6",
       "roundness": null,
       "seed": 1006,
-      "version": 1,
-      "versionNonce": 1006,
+      "version": 31,
+      "versionNonce": 166054701,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397361887,
       "link": null,
       "locked": false,
       "text": "lint-and-typecheck\npre-commit --all-files\nruff, mypy x7, black, TFLint,\nhadolint, shellcheck, actionlint,\ngitleaks, checkov, kubeconform",
@@ -250,7 +283,6 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "test-box",
       "type": "rectangle",
@@ -269,14 +301,22 @@
       "groupIds": [],
       "frameId": null,
       "index": "a7",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1007,
       "version": 1,
       "versionNonce": 1007,
       "isDeleted": false,
       "boundElements": [
-        { "id": "test-text", "type": "text" },
-        { "id": "arrow-lint-test", "type": "arrow" }
+        {
+          "id": "test-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-lint-test",
+          "type": "arrow"
+        }
       ],
       "updated": 1,
       "link": null,
@@ -285,10 +325,10 @@
     {
       "id": "test-text",
       "type": "text",
-      "x": 770,
-      "y": 330,
-      "width": 200,
-      "height": 60,
+      "x": 807.8470687866211,
+      "y": 333.75,
+      "width": 124.30586242675781,
+      "height": 52.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -302,11 +342,11 @@
       "index": "a8",
       "roundness": null,
       "seed": 1008,
-      "version": 1,
-      "versionNonce": 1008,
+      "version": 3,
+      "versionNonce": 1152768675,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397292686,
       "link": null,
       "locked": false,
       "text": "unit-tests\npytest: simulation,\nstream-processor",
@@ -319,7 +359,6 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "fe-box",
       "type": "rectangle",
@@ -338,14 +377,22 @@
       "groupIds": [],
       "frameId": null,
       "index": "a9",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1009,
       "version": 1,
       "versionNonce": 1009,
       "isDeleted": false,
       "boundElements": [
-        { "id": "fe-text", "type": "text" },
-        { "id": "arrow-lint-fe", "type": "arrow" }
+        {
+          "id": "fe-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-lint-fe",
+          "type": "arrow"
+        }
       ],
       "updated": 1,
       "link": null,
@@ -354,10 +401,10 @@
     {
       "id": "fe-text",
       "type": "text",
-      "x": 770,
-      "y": 440,
-      "width": 200,
-      "height": 45,
+      "x": 823.6390533447266,
+      "y": 445,
+      "width": 92.72189331054688,
+      "height": 35,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -371,11 +418,11 @@
       "index": "b0",
       "roundness": null,
       "seed": 1010,
-      "version": 1,
-      "versionNonce": 1010,
+      "version": 3,
+      "versionNonce": 980710445,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397293387,
       "link": null,
       "locked": false,
       "text": "frontend-build\nnpm run build",
@@ -388,7 +435,6 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "api-box",
       "type": "rectangle",
@@ -407,14 +453,22 @@
       "groupIds": [],
       "frameId": null,
       "index": "b1",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1011,
       "version": 1,
       "versionNonce": 1011,
       "isDeleted": false,
       "boundElements": [
-        { "id": "api-text", "type": "text" },
-        { "id": "arrow-lint-api", "type": "arrow" }
+        {
+          "id": "api-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-lint-api",
+          "type": "arrow"
+        }
       ],
       "updated": 1,
       "link": null,
@@ -423,10 +477,10 @@
     {
       "id": "api-text",
       "type": "text",
-      "x": 770,
-      "y": 540,
-      "width": 200,
-      "height": 60,
+      "x": 792.6710739135742,
+      "y": 543.75,
+      "width": 154.65785217285156,
+      "height": 52.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -440,11 +494,11 @@
       "index": "b2",
       "roundness": null,
       "seed": 1012,
-      "version": 1,
-      "versionNonce": 1012,
+      "version": 3,
+      "versionNonce": 911720451,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397293999,
       "link": null,
       "locked": false,
       "text": "api-contract\nOpenAPI export ->\nTypeScript type parity",
@@ -457,14 +511,13 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "lambda-bg",
       "type": "rectangle",
       "x": 20,
       "y": 290,
       "width": 260,
-      "height": 360,
+      "height": 320.5418997178826,
       "angle": 0,
       "strokeColor": "#6a1b9a",
       "backgroundColor": "#f3e5f5",
@@ -476,15 +529,20 @@
       "groupIds": [],
       "frameId": null,
       "index": "b3",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1013,
-      "version": 1,
-      "versionNonce": 1013,
+      "version": 52,
+      "versionNonce": 590249187,
       "isDeleted": false,
       "boundElements": [
-        { "id": "arrow-push-lambda", "type": "arrow" }
+        {
+          "id": "arrow-push-lambda",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774397349404,
       "link": null,
       "locked": false
     },
@@ -508,11 +566,16 @@
       "index": "b4",
       "roundness": null,
       "seed": 1014,
-      "version": 1,
-      "versionNonce": 1014,
+      "version": 4,
+      "versionNonce": 619433219,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [
+        {
+          "id": "arrow-push-lambda",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1774397388599,
       "link": null,
       "locked": false,
       "text": "Automated on path change",
@@ -525,7 +588,6 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "l-auth-box",
       "type": "rectangle",
@@ -544,13 +606,18 @@
       "groupIds": [],
       "frameId": null,
       "index": "b5",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1015,
       "version": 1,
       "versionNonce": 1015,
       "isDeleted": false,
       "boundElements": [
-        { "id": "l-auth-text", "type": "text" }
+        {
+          "id": "l-auth-text",
+          "type": "text"
+        }
       ],
       "updated": 1,
       "link": null,
@@ -559,10 +626,10 @@
     {
       "id": "l-auth-text",
       "type": "text",
-      "x": 50,
-      "y": 345,
-      "width": 200,
-      "height": 45,
+      "x": 69.59807586669922,
+      "y": 350,
+      "width": 160.80384826660156,
+      "height": 35,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -576,11 +643,11 @@
       "index": "b6",
       "roundness": null,
       "seed": 1016,
-      "version": 1,
-      "versionNonce": 1016,
+      "version": 3,
+      "versionNonce": 1860632451,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397290368,
       "link": null,
       "locked": false,
       "text": "deploy-lambda-auth\nservices/auth-deploy/**",
@@ -593,12 +660,11 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "l-chat-box",
       "type": "rectangle",
       "x": 40,
-      "y": 425,
+      "y": 425.18586857753314,
       "width": 220,
       "height": 65,
       "angle": 0,
@@ -612,25 +678,30 @@
       "groupIds": [],
       "frameId": null,
       "index": "b7",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1017,
-      "version": 1,
-      "versionNonce": 1017,
+      "version": 2,
+      "versionNonce": 2082028227,
       "isDeleted": false,
       "boundElements": [
-        { "id": "l-chat-text", "type": "text" }
+        {
+          "id": "l-chat-text",
+          "type": "text"
+        }
       ],
-      "updated": 1,
+      "updated": 1774397290963,
       "link": null,
       "locked": false
     },
     {
       "id": "l-chat-text",
       "type": "text",
-      "x": 50,
-      "y": 435,
-      "width": 200,
-      "height": 45,
+      "x": 84.12305450439453,
+      "y": 440.18586857753314,
+      "width": 131.75389099121094,
+      "height": 35,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -644,11 +715,11 @@
       "index": "b8",
       "roundness": null,
       "seed": 1018,
-      "version": 1,
-      "versionNonce": 1018,
+      "version": 4,
+      "versionNonce": 696271171,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397291150,
       "link": null,
       "locked": false,
       "text": "deploy-lambda-chat\nservices/ai-chat/**",
@@ -661,7 +732,6 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "l-rds-box",
       "type": "rectangle",
@@ -686,7 +756,10 @@
       "versionNonce": 1019,
       "isDeleted": false,
       "boundElements": [
-        { "id": "l-rds-text", "type": "text" }
+        {
+          "id": "l-rds-text",
+          "type": "text"
+        }
       ],
       "updated": 1,
       "link": null,
@@ -695,10 +768,10 @@
     {
       "id": "l-rds-text",
       "type": "text",
-      "x": 50,
-      "y": 525,
-      "width": 200,
-      "height": 45,
+      "x": 68.7370834350586,
+      "y": 530,
+      "width": 162.5258331298828,
+      "height": 35,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -712,11 +785,11 @@
       "index": "c0",
       "roundness": null,
       "seed": 1020,
-      "version": 1,
-      "versionNonce": 1020,
+      "version": 3,
+      "versionNonce": 566592397,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397291868,
       "link": null,
       "locked": false,
       "text": "deploy-lambda-rds-reset\nservices/rds-reset/**",
@@ -729,12 +802,11 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "auto-bg",
       "type": "rectangle",
       "x": 330,
-      "y": 810,
+      "y": 695,
       "width": 680,
       "height": 220,
       "angle": 0,
@@ -748,21 +820,23 @@
       "groupIds": [],
       "frameId": null,
       "index": "c1",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1021,
-      "version": 1,
-      "versionNonce": 1021,
+      "version": 24,
+      "versionNonce": 268700013,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1,
+      "updated": 1774397419624,
       "link": null,
       "locked": false
     },
     {
       "id": "auto-label",
       "type": "text",
-      "x": 500,
-      "y": 818,
+      "x": 500.2278389014923,
+      "y": 702.0706571123343,
       "width": 340,
       "height": 25,
       "angle": 0,
@@ -778,11 +852,11 @@
       "index": "c2",
       "roundness": null,
       "seed": 1022,
-      "version": 1,
-      "versionNonce": 1022,
+      "version": 25,
+      "versionNonce": 1764577251,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397419624,
       "link": null,
       "locked": false,
       "text": "Automated on CI success",
@@ -795,12 +869,11 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "build-box",
       "type": "rectangle",
-      "x": 355,
-      "y": 855,
+      "x": 354.81413142246686,
+      "y": 740.0059957605656,
       "width": 280,
       "height": 155,
       "angle": 0,
@@ -814,27 +887,38 @@
       "groupIds": [],
       "frameId": null,
       "index": "c3",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1023,
-      "version": 1,
-      "versionNonce": 1023,
+      "version": 25,
+      "versionNonce": 411935651,
       "isDeleted": false,
       "boundElements": [
-        { "id": "build-text", "type": "text" },
-        { "id": "arrow-ci-build", "type": "arrow" },
-        { "id": "arrow-build-deploy", "type": "arrow" }
+        {
+          "id": "build-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-ci-build",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-build-deploy",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774397423598,
       "link": null,
       "locked": false
     },
     {
       "id": "build-text",
       "type": "text",
-      "x": 365,
-      "y": 865,
-      "width": 260,
-      "height": 135,
+      "x": 408.59522883457623,
+      "y": 765.0059957605656,
+      "width": 172.43780517578125,
+      "height": 105,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -848,11 +932,11 @@
       "index": "c4",
       "roundness": null,
       "seed": 1024,
-      "version": 1,
-      "versionNonce": 1024,
+      "version": 27,
+      "versionNonce": 740642147,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397423785,
       "link": null,
       "locked": false,
       "text": "build-images.yml\npath-filter per service ->\ndynamic build matrix\ndocker buildx -> ECR\ntags: git-sha + latest\nlayer cache in ECR",
@@ -865,12 +949,11 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "land-box",
       "type": "rectangle",
       "x": 680,
-      "y": 855,
+      "y": 740,
       "width": 300,
       "height": 110,
       "angle": 0,
@@ -884,26 +967,34 @@
       "groupIds": [],
       "frameId": null,
       "index": "c5",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1025,
-      "version": 1,
-      "versionNonce": 1025,
+      "version": 24,
+      "versionNonce": 998337261,
       "isDeleted": false,
       "boundElements": [
-        { "id": "land-text", "type": "text" },
-        { "id": "arrow-ci-land", "type": "arrow" }
+        {
+          "id": "land-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-ci-land",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774397419625,
       "link": null,
       "locked": false
     },
     {
       "id": "land-text",
       "type": "text",
-      "x": 690,
-      "y": 865,
-      "width": 280,
-      "height": 90,
+      "x": 727.5130920410156,
+      "y": 760,
+      "width": 204.97381591796875,
+      "height": 70,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -917,11 +1008,11 @@
       "index": "c6",
       "roundness": null,
       "seed": 1026,
-      "version": 1,
-      "versionNonce": 1026,
+      "version": 26,
+      "versionNonce": 592057709,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397424500,
       "link": null,
       "locked": false,
       "text": "deploy-landing-page.yml\nnpm build -> S3 sync\n-> CloudFront invalidation\n(only if control-panel changed)",
@@ -934,13 +1025,12 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "manual-bg",
       "type": "rectangle",
-      "x": 200,
-      "y": 1110,
-      "width": 870,
+      "x": 130.56866896843314,
+      "y": 974.8081356619014,
+      "width": 879.4313313696657,
       "height": 260,
       "angle": 0,
       "strokeColor": "#e65100",
@@ -953,21 +1043,23 @@
       "groupIds": [],
       "frameId": null,
       "index": "c7",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1027,
-      "version": 1,
-      "versionNonce": 1027,
+      "version": 104,
+      "versionNonce": 1130072269,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1,
+      "updated": 1774397486054,
       "link": null,
       "locked": false
     },
     {
       "id": "manual-label",
       "type": "text",
-      "x": 380,
-      "y": 1118,
+      "x": 320.00000033809886,
+      "y": 983,
       "width": 510,
       "height": 25,
       "angle": 0,
@@ -983,11 +1075,11 @@
       "index": "c8",
       "roundness": null,
       "seed": 1028,
-      "version": 1,
-      "versionNonce": 1028,
+      "version": 83,
+      "versionNonce": 513637453,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397449615,
       "link": null,
       "locked": false,
       "text": "Manual Triggers -- workflow_dispatch",
@@ -1000,14 +1092,13 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "deploy-box",
       "type": "rectangle",
-      "x": 220,
-      "y": 1155,
+      "x": 160.1918646761976,
+      "y": 1036.74615925968,
       "width": 280,
-      "height": 195,
+      "height": 161.50768148063997,
       "angle": 0,
       "strokeColor": "#e65100",
       "backgroundColor": "#ffffff",
@@ -1019,27 +1110,38 @@
       "groupIds": [],
       "frameId": null,
       "index": "c9",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1029,
-      "version": 1,
-      "versionNonce": 1029,
+      "version": 146,
+      "versionNonce": 762310189,
       "isDeleted": false,
       "boundElements": [
-        { "id": "deploy-text", "type": "text" },
-        { "id": "arrow-build-deploy", "type": "arrow" },
-        { "id": "arrow-deploy-argo", "type": "arrow" }
+        {
+          "id": "deploy-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-build-deploy",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-deploy-argo",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774397460838,
       "link": null,
       "locked": false
     },
     {
       "id": "deploy-text",
       "type": "text",
-      "x": 230,
-      "y": 1165,
-      "width": 260,
-      "height": 175,
+      "x": 200.70796269865855,
+      "y": 1056.25,
+      "width": 198.96780395507812,
+      "height": 122.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1053,11 +1155,11 @@
       "index": "d0",
       "roundness": null,
       "seed": 1030,
-      "version": 1,
-      "versionNonce": 1030,
+      "version": 91,
+      "versionNonce": 609394509,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397451379,
       "link": null,
       "locked": false,
       "text": "deploy-platform.yml\nterraform apply\n(EKS, RDS, ALB, ESO)\n-> resolve YAML placeholders\n-> git push --force deploy\n-> install ArgoCD\n-> 5-phase convergence wait",
@@ -1070,12 +1172,11 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "tear-box",
       "type": "rectangle",
-      "x": 540,
-      "y": 1155,
+      "x": 472.67832857753325,
+      "y": 1052.5,
       "width": 250,
       "height": 130,
       "angle": 0,
@@ -1089,25 +1190,30 @@
       "groupIds": [],
       "frameId": null,
       "index": "d1",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1031,
-      "version": 1,
-      "versionNonce": 1031,
+      "version": 111,
+      "versionNonce": 659330531,
       "isDeleted": false,
       "boundElements": [
-        { "id": "tear-text", "type": "text" }
+        {
+          "id": "tear-text",
+          "type": "text"
+        }
       ],
-      "updated": 1,
+      "updated": 1774397449615,
       "link": null,
       "locked": false
     },
     {
       "id": "tear-text",
       "type": "text",
-      "x": 550,
-      "y": 1165,
-      "width": 230,
-      "height": 110,
+      "x": 499.4614248910098,
+      "y": 1073.75,
+      "width": 196.43380737304688,
+      "height": 87.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1121,11 +1227,11 @@
       "index": "d2",
       "roundness": null,
       "seed": 1032,
-      "version": 1,
-      "versionNonce": 1032,
+      "version": 113,
+      "versionNonce": 836398541,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397449615,
       "link": null,
       "locked": false,
       "text": "teardown-platform.yml\ngraceful simulation shutdown\n-> delete Route 53 record\n-> terraform destroy\n-> clean orphaned EBS",
@@ -1138,12 +1244,11 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "reset-box",
       "type": "rectangle",
-      "x": 830,
-      "y": 1155,
+      "x": 759.999999915632,
+      "y": 1052.5,
       "width": 220,
       "height": 130,
       "angle": 0,
@@ -1157,25 +1262,30 @@
       "groupIds": [],
       "frameId": null,
       "index": "d3",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1033,
-      "version": 1,
-      "versionNonce": 1033,
+      "version": 121,
+      "versionNonce": 1101390211,
       "isDeleted": false,
       "boundElements": [
-        { "id": "reset-text", "type": "text" }
+        {
+          "id": "reset-text",
+          "type": "text"
+        }
       ],
-      "updated": 1,
+      "updated": 1774397449615,
       "link": null,
       "locked": false
     },
     {
       "id": "reset-text",
       "type": "text",
-      "x": 840,
-      "y": 1165,
-      "width": 200,
-      "height": 110,
+      "x": 771.3350829234445,
+      "y": 1073.75,
+      "width": 197.329833984375,
+      "height": 87.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1189,11 +1299,11 @@
       "index": "d4",
       "roundness": null,
       "seed": 1034,
-      "version": 1,
-      "versionNonce": 1034,
+      "version": 123,
+      "versionNonce": 2101685293,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397449615,
       "link": null,
       "locked": false,
       "text": "reset-platform.yml\nsuspend ArgoCD auto-sync\n-> wipe Kafka/S3/RDS/Redis\n-> restore ArgoCD\n(keeps EKS cluster intact)",
@@ -1206,13 +1316,12 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "argo-box",
       "type": "rectangle",
-      "x": 260,
-      "y": 1440,
-      "width": 240,
+      "x": 33.480165832184866,
+      "y": 752.452832071122,
+      "width": 224.44699709287147,
       "height": 120,
       "angle": 0,
       "strokeColor": "#283593",
@@ -1225,26 +1334,34 @@
       "groupIds": [],
       "frameId": null,
       "index": "d5",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1035,
-      "version": 1,
-      "versionNonce": 1035,
+      "version": 152,
+      "versionNonce": 691624141,
       "isDeleted": false,
       "boundElements": [
-        { "id": "argo-text", "type": "text" },
-        { "id": "arrow-deploy-argo", "type": "arrow" }
+        {
+          "id": "argo-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-deploy-argo",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774397468904,
       "link": null,
       "locked": false
     },
     {
       "id": "argo-text",
       "type": "text",
-      "x": 270,
-      "y": 1450,
-      "width": 220,
-      "height": 100,
+      "x": 64.53172834346435,
+      "y": 777.452832071122,
+      "width": 162.3438720703125,
+      "height": 70,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1258,11 +1375,11 @@
       "index": "d6",
       "roundness": null,
       "seed": 1036,
-      "version": 1,
-      "versionNonce": 1036,
+      "version": 144,
+      "versionNonce": 343641859,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397419625,
       "link": null,
       "locked": false,
       "text": "ArgoCD\npolls deploy branch\nkustomize build -> apply\nself-heal within 3 min",
@@ -1275,14 +1392,13 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "arrow-push-ci",
       "type": "arrow",
-      "x": 575,
-      "y": 215,
-      "width": 0,
-      "height": 55,
+      "x": 552.6783288828804,
+      "y": 214.90000000000003,
+      "width": 8.604388312960509e-8,
+      "height": 55.099999999999966,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -1296,35 +1412,45 @@
       "index": "d7",
       "roundness": null,
       "seed": 2000,
-      "version": 1,
-      "versionNonce": 2000,
+      "version": 249,
+      "versionNonce": 1350315107,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397397892,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [0, 55]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -8.604388312960509e-8,
+          55.099999999999966
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "push-circle",
-        "fixedPoint": [0.5, 1]
+        "focus": -5.359248925640619e-16,
+        "gap": 1
       },
       "endBinding": {
-        "elementId": "ci-bg",
-        "fixedPoint": [0.36, 0]
+        "elementId": "ci-label",
+        "focus": -0.43452470824701594,
+        "gap": 8
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
     },
-
     {
       "id": "arrow-push-lambda",
       "type": "arrow",
-      "x": 500,
-      "y": 170,
-      "width": 230,
-      "height": 120,
+      "x": 472.67832899999996,
+      "y": 139.8,
+      "width": 322.778329,
+      "height": 153.2,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -1338,32 +1464,58 @@
       "index": "d8",
       "roundness": null,
       "seed": 2001,
-      "version": 1,
-      "versionNonce": 2001,
+      "version": 81,
+      "versionNonce": 1139625421,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397397831,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [-115, 0], [-115, 120], [-230, 120]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -322.778329,
+          0
+        ],
+        [
+          -322.778329,
+          153.2
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "push-circle",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          -0.03333333333333333,
+          0.49933333333333335
+        ],
+        "focus": 0,
+        "gap": 0
       },
       "endBinding": {
-        "elementId": "lambda-bg",
-        "fixedPoint": [1, 0]
+        "elementId": "lambda-label",
+        "fixedPoint": [
+          0.49954545454545446,
+          -0.2
+        ],
+        "focus": 0,
+        "gap": 0
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": true
+      "elbowed": true,
+      "fixedSegments": null,
+      "startIsSpecial": null,
+      "endIsSpecial": null
     },
     {
       "id": "arrow-push-lambda-label",
       "type": "text",
-      "x": 325,
-      "y": 145,
+      "x": 258.554981412183,
+      "y": 151.67927727006213,
       "width": 120,
       "height": 20,
       "angle": 0,
@@ -1379,11 +1531,11 @@
       "index": "d9",
       "roundness": null,
       "seed": 2002,
-      "version": 1,
-      "versionNonce": 2002,
+      "version": 44,
+      "versionNonce": 496667693,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397306487,
       "link": null,
       "locked": false,
       "text": "Lambda paths",
@@ -1396,14 +1548,13 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "arrow-lint-test",
       "type": "arrow",
-      "x": 710,
-      "y": 395,
-      "width": 50,
-      "height": 35,
+      "x": 690.663672,
+      "y": 415.5796867159103,
+      "width": 72.62883094489143,
+      "height": 22.64257981979472,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -1417,35 +1568,51 @@
       "index": "e0",
       "roundness": null,
       "seed": 2003,
-      "version": 1,
-      "versionNonce": 2003,
+      "version": 31,
+      "versionNonce": 1790827917,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397361887,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [50, -35]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          72.62883094489143,
+          -22.64257981979472
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "lint-box",
-        "fixedPoint": [1, 0.2]
+        "fixedPoint": [
+          1,
+          0.2
+        ],
+        "focus": 0
       },
       "endBinding": {
         "elementId": "test-box",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          0,
+          0.5
+        ],
+        "focus": 0
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
     },
-
     {
       "id": "arrow-lint-fe",
       "type": "arrow",
-      "x": 710,
-      "y": 445,
-      "width": 50,
-      "height": 17,
+      "x": 690.6636719999999,
+      "y": 462.24841383153864,
+      "width": 69.3363280000001,
+      "height": 0.03915546300231654,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -1459,35 +1626,51 @@
       "index": "e1",
       "roundness": null,
       "seed": 2004,
-      "version": 1,
-      "versionNonce": 2004,
+      "version": 31,
+      "versionNonce": 1873060845,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397361887,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [50, 17]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          69.3363280000001,
+          -0.03915546300231654
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "lint-box",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          1,
+          0.5
+        ],
+        "focus": 0
       },
       "endBinding": {
         "elementId": "fe-box",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          0,
+          0.5
+        ],
+        "focus": 0
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
     },
-
     {
       "id": "arrow-lint-api",
       "type": "arrow",
-      "x": 710,
-      "y": 495,
-      "width": 50,
-      "height": 75,
+      "x": 690.663672,
+      "y": 511.22346035810205,
+      "width": 74.00357665723698,
+      "height": 24.120747840165393,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -1501,35 +1684,51 @@
       "index": "e2",
       "roundness": null,
       "seed": 2005,
-      "version": 1,
-      "versionNonce": 2005,
+      "version": 31,
+      "versionNonce": 212049485,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397361888,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [50, 75]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          74.00357665723698,
+          24.120747840165393
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "lint-box",
-        "fixedPoint": [1, 0.8]
+        "fixedPoint": [
+          1,
+          0.8
+        ],
+        "focus": 0
       },
       "endBinding": {
         "elementId": "api-box",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          0,
+          0.5
+        ],
+        "focus": 0
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "elbowed": false
     },
-
     {
       "id": "arrow-ci-build",
       "type": "arrow",
-      "x": 495,
-      "y": 750,
-      "width": 0,
-      "height": 60,
+      "x": 492.51261191094244,
+      "y": 644.8316679954199,
+      "width": 1.8354535685144242,
+      "height": 94.68789584416766,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -1543,22 +1742,33 @@
       "index": "e3",
       "roundness": null,
       "seed": 2006,
-      "version": 1,
-      "versionNonce": 2006,
+      "version": 203,
+      "versionNonce": 1295865571,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397423598,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [0, 105]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          1.8354535685144242,
+          94.68789584416766
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "ci-bg",
-        "fixedPoint": [0.24, 1]
+        "focus": 0.5263505954030568,
+        "gap": 2.9679014799647803
       },
       "endBinding": {
         "elementId": "build-box",
-        "fixedPoint": [0.5, 0]
+        "focus": 0.007578839649947886,
+        "gap": 1
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -1568,7 +1778,7 @@
       "id": "arrow-ci-build-label",
       "type": "text",
       "x": 505,
-      "y": 775,
+      "y": 660,
       "width": 60,
       "height": 20,
       "angle": 0,
@@ -1584,11 +1794,11 @@
       "index": "e4",
       "roundness": null,
       "seed": 2007,
-      "version": 1,
-      "versionNonce": 2007,
+      "version": 24,
+      "versionNonce": 772478637,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397419625,
       "link": null,
       "locked": false,
       "text": "success",
@@ -1601,14 +1811,13 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "arrow-ci-land",
       "type": "arrow",
       "x": 830,
-      "y": 750,
-      "width": 0,
-      "height": 105,
+      "y": 645.2841395728641,
+      "width": 1.1368683772161603e-13,
+      "height": 94.36814164009695,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -1622,22 +1831,29 @@
       "index": "e5",
       "roundness": null,
       "seed": 2008,
-      "version": 1,
-      "versionNonce": 2008,
+      "version": 165,
+      "versionNonce": 1204864611,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397419625,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [0, 105]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -1.1368683772161603e-13,
+          94.36814164009695
+        ]
+      ],
       "lastCommittedPoint": null,
-      "startBinding": {
-        "elementId": "ci-bg",
-        "fixedPoint": [0.74, 1]
-      },
+      "startBinding": null,
       "endBinding": {
         "elementId": "land-box",
-        "fixedPoint": [0.5, 0]
+        "focus": 0,
+        "gap": 1
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -1647,7 +1863,7 @@
       "id": "arrow-ci-land-label",
       "type": "text",
       "x": 840,
-      "y": 775,
+      "y": 660,
       "width": 110,
       "height": 20,
       "angle": 0,
@@ -1663,11 +1879,11 @@
       "index": "e6",
       "roundness": null,
       "seed": 2009,
-      "version": 1,
-      "versionNonce": 2009,
+      "version": 24,
+      "versionNonce": 1557706403,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397419625,
       "link": null,
       "locked": false,
       "text": "control-panel/**",
@@ -1680,14 +1896,13 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "arrow-build-deploy",
       "type": "arrow",
-      "x": 420,
-      "y": 1010,
-      "width": 60,
-      "height": 145,
+      "x": 444.2482368979766,
+      "y": 895.4924276815436,
+      "width": 91.26286925235695,
+      "height": 140.7521335914289,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -1701,22 +1916,33 @@
       "index": "e7",
       "roundness": null,
       "seed": 2010,
-      "version": 1,
-      "versionNonce": 2010,
+      "version": 210,
+      "versionNonce": 2131468429,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397460838,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [-60, 145]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -91.26286925235695,
+          140.7521335914289
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "build-box",
-        "fixedPoint": [0.23, 1]
+        "focus": 1.02873533659132e-8,
+        "gap": 1
       },
       "endBinding": {
         "elementId": "deploy-box",
-        "fixedPoint": [0.5, 0]
+        "focus": 0.0005610499195781963,
+        "gap": 1
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -1725,8 +1951,8 @@
     {
       "id": "arrow-build-deploy-label",
       "type": "text",
-      "x": 335,
-      "y": 1060,
+      "x": 456.7079437208174,
+      "y": 936.4620369546064,
       "width": 110,
       "height": 20,
       "angle": 0,
@@ -1742,11 +1968,11 @@
       "index": "e8",
       "roundness": null,
       "seed": 2011,
-      "version": 1,
-      "versionNonce": 2011,
+      "version": 60,
+      "versionNonce": 1517283907,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397419625,
       "link": null,
       "locked": false,
       "text": "images in ECR",
@@ -1759,14 +1985,13 @@
       "autoResize": true,
       "lineHeight": 1.25
     },
-
     {
       "id": "arrow-deploy-argo",
       "type": "arrow",
-      "x": 360,
-      "y": 1350,
-      "width": 20,
-      "height": 90,
+      "x": 273.888337535147,
+      "y": 1036.2445612729725,
+      "width": 104.54473033968455,
+      "height": 163.31742745700353,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -1780,22 +2005,33 @@
       "index": "e9",
       "roundness": null,
       "seed": 2012,
-      "version": 1,
-      "versionNonce": 2012,
+      "version": 340,
+      "versionNonce": 529446701,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397468904,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [20, 90]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -104.54473033968455,
+          -163.31742745700353
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "deploy-box",
-        "fixedPoint": [0.5, 1]
+        "focus": 0.1342193981730997,
+        "gap": 1
       },
       "endBinding": {
         "elementId": "argo-box",
-        "fixedPoint": [0.5, 0]
+        "focus": 0.10000000021939229,
+        "gap": 1
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -1804,8 +2040,8 @@
     {
       "id": "arrow-deploy-argo-label",
       "type": "text",
-      "x": 270,
-      "y": 1380,
+      "x": 101.52512386761691,
+      "y": 917.0240440551219,
       "width": 100,
       "height": 38,
       "angle": 0,
@@ -1821,11 +2057,11 @@
       "index": "f0",
       "roundness": null,
       "seed": 2013,
-      "version": 1,
-      "versionNonce": 2013,
+      "version": 245,
+      "versionNonce": 1623793581,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774397480988,
       "link": null,
       "locked": false,
       "text": "force-push\ndeploy branch",

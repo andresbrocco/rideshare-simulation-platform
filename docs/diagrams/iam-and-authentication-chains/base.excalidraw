@@ -1,13 +1,13 @@
 {
   "type": "excalidraw",
   "version": 2,
-  "source": "diagrams",
+  "source": "https://excalidraw.com",
   "elements": [
     {
       "id": "title-text",
       "type": "text",
-      "x": 700,
-      "y": -40,
+      "x": 362,
+      "y": -38.43228767772844,
       "width": 500,
       "height": 40,
       "angle": 0,
@@ -23,11 +23,11 @@
       "index": "a0",
       "roundness": null,
       "seed": 5000,
-      "version": 1,
-      "versionNonce": 5000,
+      "version": 50,
+      "versionNonce": 1669196534,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634504069,
       "link": null,
       "locked": false,
       "text": "IAM & Authentication Chains",
@@ -43,10 +43,10 @@
     {
       "id": "gh-bg",
       "type": "rectangle",
-      "x": 40,
+      "x": 80.7605287581207,
       "y": 20,
-      "width": 2320,
-      "height": 310,
+      "width": 1114.429642168534,
+      "height": 375.4346936908688,
       "angle": 0,
       "strokeColor": "#1565c0",
       "backgroundColor": "#e3f2fd",
@@ -58,24 +58,29 @@
       "groupIds": [],
       "frameId": null,
       "index": "a1",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1000,
-      "version": 1,
-      "versionNonce": 1000,
+      "version": 183,
+      "versionNonce": 257302710,
       "isDeleted": false,
       "boundElements": [
-        { "id": "gh-bg-text", "type": "text" }
+        {
+          "id": "gh-bg-text",
+          "type": "text"
+        }
       ],
-      "updated": 1,
+      "updated": 1774634497677,
       "link": null,
       "locked": false
     },
     {
       "id": "gh-bg-text",
       "type": "text",
-      "x": 50,
+      "x": 440.12534373887206,
       "y": 25,
-      "width": 2300,
+      "width": 395.70001220703125,
       "height": 25,
       "angle": 0,
       "strokeColor": "#1565c0",
@@ -90,11 +95,11 @@
       "index": "a2",
       "roundness": null,
       "seed": 1001,
-      "version": 1,
-      "versionNonce": 1001,
+      "version": 147,
+      "versionNonce": 1014798838,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634497677,
       "link": null,
       "locked": false,
       "text": "GitHub Actions — CI/CD Authentication",
@@ -110,9 +115,9 @@
     {
       "id": "runner",
       "type": "rectangle",
-      "x": 80,
+      "x": 110.19013218953026,
       "y": 100,
-      "width": 240,
+      "width": 219.61973562093948,
       "height": 80,
       "angle": 0,
       "strokeColor": "#1565c0",
@@ -125,26 +130,34 @@
       "groupIds": [],
       "frameId": null,
       "index": "a3",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1002,
-      "version": 1,
-      "versionNonce": 1002,
+      "version": 22,
+      "versionNonce": 448278454,
       "isDeleted": false,
       "boundElements": [
-        { "id": "runner-text", "type": "text" },
-        { "id": "arrow-gh-1", "type": "arrow" }
+        {
+          "id": "runner-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-gh-1",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774634494373,
       "link": null,
       "locked": false
     },
     {
       "id": "runner-text",
       "type": "text",
-      "x": 90,
-      "y": 110,
-      "width": 220,
-      "height": 60,
+      "x": 133.11666870117188,
+      "y": 120,
+      "width": 173.76666259765625,
+      "height": 40,
       "angle": 0,
       "strokeColor": "#1a1a1a",
       "backgroundColor": "transparent",
@@ -158,11 +171,11 @@
       "index": "a4",
       "roundness": null,
       "seed": 1003,
-      "version": 1,
-      "versionNonce": 1003,
+      "version": 7,
+      "versionNonce": 58780010,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634494374,
       "link": null,
       "locked": false,
       "text": "GitHub Actions Runner\nruns workflow job",
@@ -193,15 +206,26 @@
       "groupIds": [],
       "frameId": null,
       "index": "a5",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1004,
       "version": 1,
       "versionNonce": 1004,
       "isDeleted": false,
       "boundElements": [
-        { "id": "oidc-text", "type": "text" },
-        { "id": "arrow-gh-1", "type": "arrow" },
-        { "id": "arrow-gh-2", "type": "arrow" }
+        {
+          "id": "oidc-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-gh-1",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-gh-2",
+          "type": "arrow"
+        }
       ],
       "updated": 1,
       "link": null,
@@ -210,10 +234,10 @@
     {
       "id": "oidc-text",
       "type": "text",
-      "x": 510,
-      "y": 90,
-      "width": 240,
-      "height": 100,
+      "x": 545.1999969482422,
+      "y": 110,
+      "width": 169.60000610351562,
+      "height": 60,
       "angle": 0,
       "strokeColor": "#1a1a1a",
       "backgroundColor": "transparent",
@@ -227,11 +251,11 @@
       "index": "a6",
       "roundness": null,
       "seed": 1005,
-      "version": 1,
-      "versionNonce": 1005,
+      "version": 3,
+      "versionNonce": 1892323626,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634336304,
       "link": null,
       "locked": false,
       "text": "GitHub OIDC Token\nsigned JWT proving:\nrepo, branch, workflow",
@@ -262,15 +286,26 @@
       "groupIds": [],
       "frameId": null,
       "index": "a7",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1006,
       "version": 1,
       "versionNonce": 1006,
       "isDeleted": false,
       "boundElements": [
-        { "id": "sts-ci-text", "type": "text" },
-        { "id": "arrow-gh-2", "type": "arrow" },
-        { "id": "arrow-gh-3", "type": "arrow" }
+        {
+          "id": "sts-ci-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-gh-2",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-gh-3",
+          "type": "arrow"
+        }
       ],
       "updated": 1,
       "link": null,
@@ -279,10 +314,10 @@
     {
       "id": "sts-ci-text",
       "type": "text",
-      "x": 950,
-      "y": 95,
-      "width": 200,
-      "height": 90,
+      "x": 989.5666656494141,
+      "y": 110,
+      "width": 120.86666870117188,
+      "height": 60,
       "angle": 0,
       "strokeColor": "#1a1a1a",
       "backgroundColor": "transparent",
@@ -296,11 +331,11 @@
       "index": "a8",
       "roundness": null,
       "seed": 1007,
-      "version": 1,
-      "versionNonce": 1007,
+      "version": 3,
+      "versionNonce": 305145014,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634337605,
       "link": null,
       "locked": false,
       "text": "AWS STS\nAssumeRoleWith\nWebIdentity",
@@ -316,10 +351,10 @@
     {
       "id": "role-ci",
       "type": "rectangle",
-      "x": 1340,
-      "y": 65,
-      "width": 290,
-      "height": 150,
+      "x": 929.5859597515714,
+      "y": 242.5081729539187,
+      "width": 237.69309491997615,
+      "height": 124.98365409216262,
       "angle": 0,
       "strokeColor": "#1565c0",
       "backgroundColor": "#ffffff",
@@ -331,27 +366,38 @@
       "groupIds": [],
       "frameId": null,
       "index": "a9",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1008,
-      "version": 1,
-      "versionNonce": 1008,
+      "version": 149,
+      "versionNonce": 1021410730,
       "isDeleted": false,
       "boundElements": [
-        { "id": "role-ci-text", "type": "text" },
-        { "id": "arrow-gh-3", "type": "arrow" },
-        { "id": "arrow-gh-4", "type": "arrow" }
+        {
+          "id": "role-ci-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-gh-3",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-gh-4",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774634459603,
       "link": null,
       "locked": false
     },
     {
       "id": "role-ci-text",
       "type": "text",
-      "x": 1350,
-      "y": 75,
-      "width": 270,
-      "height": 130,
+      "x": 959.7908369845087,
+      "y": 261.25,
+      "width": 177.28334045410156,
+      "height": 87.5,
       "angle": 0,
       "strokeColor": "#1a1a1a",
       "backgroundColor": "transparent",
@@ -365,11 +411,11 @@
       "index": "b0",
       "roundness": null,
       "seed": 1009,
-      "version": 1,
-      "versionNonce": 1009,
+      "version": 104,
+      "versionNonce": 1668318326,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634459605,
       "link": null,
       "locked": false,
       "text": "rideshare-github-actions\nIAM Role\ntrust: token.actions.\ngithubusercontent.com\ncondition: main branch only",
@@ -385,10 +431,10 @@
     {
       "id": "perms-ci",
       "type": "rectangle",
-      "x": 1810,
-      "y": 65,
-      "width": 280,
-      "height": 150,
+      "x": 495.0437834505648,
+      "y": 247.0193264826164,
+      "width": 268.62893367825563,
+      "height": 115.88680103476713,
       "angle": 0,
       "strokeColor": "#1565c0",
       "backgroundColor": "#ffffff",
@@ -400,26 +446,34 @@
       "groupIds": [],
       "frameId": null,
       "index": "b1",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1010,
-      "version": 1,
-      "versionNonce": 1010,
+      "version": 98,
+      "versionNonce": 757114346,
       "isDeleted": false,
       "boundElements": [
-        { "id": "perms-ci-text", "type": "text" },
-        { "id": "arrow-gh-4", "type": "arrow" }
+        {
+          "id": "perms-ci-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-gh-4",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774634459605,
       "link": null,
       "locked": false
     },
     {
       "id": "perms-ci-text",
       "type": "text",
-      "x": 1820,
-      "y": 75,
-      "width": 260,
-      "height": 130,
+      "x": 531.2915846402785,
+      "y": 261.212727,
+      "width": 196.13333129882812,
+      "height": 87.5,
       "angle": 0,
       "strokeColor": "#1a1a1a",
       "backgroundColor": "transparent",
@@ -433,11 +487,11 @@
       "index": "b2",
       "roundness": null,
       "seed": 1011,
-      "version": 1,
-      "versionNonce": 1011,
+      "version": 78,
+      "versionNonce": 19291894,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634459606,
       "link": null,
       "locked": false,
       "text": "Permissions\nECR push, EKS deploy,\nTerraform state, S3, RDS,\nSecrets Manager, Route 53,\nCloudFront, Lambda...",
@@ -453,10 +507,10 @@
     {
       "id": "arrow-gh-1",
       "type": "arrow",
-      "x": 320,
-      "y": 140,
-      "width": 180,
-      "height": 0,
+      "x": 335.80986781046977,
+      "y": 140.00912962698018,
+      "width": 158.19013218953023,
+      "height": 0.0015433031630891492,
       "angle": 0,
       "strokeColor": "#1565c0",
       "backgroundColor": "transparent",
@@ -470,26 +524,44 @@
       "index": "b3",
       "roundness": null,
       "seed": 2000,
-      "version": 1,
-      "versionNonce": 2000,
+      "version": 22,
+      "versionNonce": 804015786,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634494374,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [180, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          158.19013218953023,
+          0.0015433031630891492
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "runner",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "oidc",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-gh-1",
@@ -514,7 +586,7 @@
       "version": 1,
       "versionNonce": 3000,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1,
       "link": null,
       "locked": false,
@@ -551,19 +623,36 @@
       "version": 1,
       "versionNonce": 2001,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [180, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          180,
+          0
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "oidc",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "sts-ci",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -572,7 +661,7 @@
     {
       "id": "label-gh-2",
       "type": "text",
-      "x": 790,
+      "x": 783,
       "y": 112,
       "width": 130,
       "height": 18,
@@ -589,11 +678,11 @@
       "index": "b6",
       "roundness": null,
       "seed": 3001,
-      "version": 1,
-      "versionNonce": 3001,
+      "version": 8,
+      "versionNonce": 339708150,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634464470,
       "link": null,
       "locked": false,
       "text": "2. present to AWS",
@@ -609,10 +698,10 @@
     {
       "id": "arrow-gh-3",
       "type": "arrow",
-      "x": 1160,
-      "y": 140,
-      "width": 180,
-      "height": 0,
+      "x": 1049.4432664114959,
+      "y": 201,
+      "width": 0.3369422740963728,
+      "height": 35.50817295391866,
       "angle": 0,
       "strokeColor": "#1565c0",
       "backgroundColor": "transparent",
@@ -626,32 +715,50 @@
       "index": "b7",
       "roundness": null,
       "seed": 2002,
-      "version": 1,
-      "versionNonce": 2002,
+      "version": 150,
+      "versionNonce": 440273398,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634459604,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [180, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -0.3369422740963728,
+          35.50817295391866
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "sts-ci",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "role-ci",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-gh-3",
       "type": "text",
-      "x": 1190,
-      "y": 112,
+      "x": 883.2265548277345,
+      "y": 209.76764508412376,
       "width": 140,
       "height": 18,
       "angle": 0,
@@ -667,11 +774,11 @@
       "index": "b8",
       "roundness": null,
       "seed": 3002,
-      "version": 1,
-      "versionNonce": 3002,
+      "version": 164,
+      "versionNonce": 1288992106,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634483288,
       "link": null,
       "locked": false,
       "text": "3. validate + assume",
@@ -687,10 +794,10 @@
     {
       "id": "arrow-gh-4",
       "type": "arrow",
-      "x": 1630,
-      "y": 140,
-      "width": 180,
-      "height": 0,
+      "x": 923.5859597515715,
+      "y": 305.0011210996215,
+      "width": 153.91324262275123,
+      "height": 0.014023443800340374,
       "angle": 0,
       "strokeColor": "#1565c0",
       "backgroundColor": "transparent",
@@ -704,32 +811,50 @@
       "index": "b9",
       "roundness": null,
       "seed": 2003,
-      "version": 1,
-      "versionNonce": 2003,
+      "version": 245,
+      "versionNonce": 789874102,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634459606,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [180, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -153.91324262275123,
+          -0.014023443800340374
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "role-ci",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "perms-ci",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          0.5001,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-gh-4",
       "type": "text",
-      "x": 1660,
-      "y": 112,
+      "x": 781.0742572896926,
+      "y": 266,
       "width": 130,
       "height": 18,
       "angle": 0,
@@ -745,11 +870,11 @@
       "index": "c0",
       "roundness": null,
       "seed": 3003,
-      "version": 1,
-      "versionNonce": 3003,
+      "version": 55,
+      "versionNonce": 1378595690,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634459606,
       "link": null,
       "locked": false,
       "text": "4. temporary creds",
@@ -765,10 +890,10 @@
     {
       "id": "k8s-bg",
       "type": "rectangle",
-      "x": 40,
-      "y": 380,
-      "width": 2320,
-      "height": 310,
+      "x": 80.76052924631894,
+      "y": 433.7383329904182,
+      "width": 1114.429641753681,
+      "height": 368.00536784809486,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "#e8f5e9",
@@ -780,24 +905,29 @@
       "groupIds": [],
       "frameId": null,
       "index": "c1",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1100,
-      "version": 1,
-      "versionNonce": 1100,
+      "version": 222,
+      "versionNonce": 404939638,
       "isDeleted": false,
       "boundElements": [
-        { "id": "k8s-bg-text", "type": "text" }
+        {
+          "id": "k8s-bg-text",
+          "type": "text"
+        }
       ],
-      "updated": 1,
+      "updated": 1774634638327,
       "link": null,
       "locked": false
     },
     {
       "id": "k8s-bg-text",
       "type": "text",
-      "x": 50,
-      "y": 385,
-      "width": 2300,
+      "x": 481.66701577257345,
+      "y": 438.7383329904182,
+      "width": 312.6166687011719,
       "height": 25,
       "angle": 0,
       "strokeColor": "#2e7d32",
@@ -812,11 +942,11 @@
       "index": "c2",
       "roundness": null,
       "seed": 1101,
-      "version": 1,
-      "versionNonce": 1101,
+      "version": 177,
+      "versionNonce": 2082669750,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634638327,
       "link": null,
       "locked": false,
       "text": "EKS — Workload Authentication",
@@ -832,10 +962,10 @@
     {
       "id": "pod",
       "type": "rectangle",
-      "x": 80,
-      "y": 460,
-      "width": 260,
-      "height": 100,
+      "x": 109.7865407345172,
+      "y": 497.2773502227156,
+      "width": 222.3748965309656,
+      "height": 84.32287355456873,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "#ffffff",
@@ -847,26 +977,34 @@
       "groupIds": [],
       "frameId": null,
       "index": "c3",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1102,
-      "version": 1,
-      "versionNonce": 1102,
+      "version": 84,
+      "versionNonce": 1478603114,
       "isDeleted": false,
       "boundElements": [
-        { "id": "pod-text", "type": "text" },
-        { "id": "arrow-k8s-1", "type": "arrow" }
+        {
+          "id": "pod-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-k8s-1",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774634634772,
       "link": null,
       "locked": false
     },
     {
       "id": "pod-text",
       "type": "text",
-      "x": 90,
-      "y": 470,
-      "width": 240,
-      "height": 80,
+      "x": 132.03232335058595,
+      "y": 513.188787,
+      "width": 177.88333129882812,
+      "height": 52.5,
       "angle": 0,
       "strokeColor": "#1a1a1a",
       "backgroundColor": "transparent",
@@ -880,11 +1018,11 @@
       "index": "c4",
       "roundness": null,
       "seed": 1103,
-      "version": 1,
-      "versionNonce": 1103,
+      "version": 51,
+      "versionNonce": 746320938,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
       "text": "Pod\nServiceAccount: simulation\nnamespace: rideshare-prod",
@@ -900,10 +1038,10 @@
     {
       "id": "pia",
       "type": "rectangle",
-      "x": 470,
-      "y": 445,
-      "width": 280,
-      "height": 130,
+      "x": 494.61926858609326,
+      "y": 483.53564005739537,
+      "width": 252.70944082781352,
+      "height": 111.8062938852093,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "#ffffff",
@@ -915,27 +1053,38 @@
       "groupIds": [],
       "frameId": null,
       "index": "c5",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1104,
-      "version": 1,
-      "versionNonce": 1104,
+      "version": 72,
+      "versionNonce": 1778376426,
       "isDeleted": false,
       "boundElements": [
-        { "id": "pia-text", "type": "text" },
-        { "id": "arrow-k8s-1", "type": "arrow" },
-        { "id": "arrow-k8s-2", "type": "arrow" }
+        {
+          "id": "pia-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-k8s-1",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-k8s-2",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774634634772,
       "link": null,
       "locked": false
     },
     {
       "id": "pia-text",
       "type": "text",
-      "x": 480,
-      "y": 455,
-      "width": 260,
-      "height": 110,
+      "x": 533.2156577011718,
+      "y": 504.438787,
+      "width": 175.51666259765625,
+      "height": 70,
       "angle": 0,
       "strokeColor": "#1a1a1a",
       "backgroundColor": "transparent",
@@ -949,11 +1098,11 @@
       "index": "c6",
       "roundness": null,
       "seed": 1105,
-      "version": 1,
-      "versionNonce": 1105,
+      "version": 50,
+      "versionNonce": 221802922,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
       "text": "Pod Identity Agent\nDaemonSet on every node\nintercepts credential\nrequests",
@@ -969,10 +1118,10 @@
     {
       "id": "assoc",
       "type": "rectangle",
-      "x": 880,
-      "y": 445,
-      "width": 290,
-      "height": 130,
+      "x": 909.1676951147907,
+      "y": 485.8098533217443,
+      "width": 253.6125877704185,
+      "height": 104.98365409216251,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "#ffffff",
@@ -984,27 +1133,38 @@
       "groupIds": [],
       "frameId": null,
       "index": "c7",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1106,
-      "version": 1,
-      "versionNonce": 1106,
+      "version": 89,
+      "versionNonce": 1230023786,
       "isDeleted": false,
       "boundElements": [
-        { "id": "assoc-text", "type": "text" },
-        { "id": "arrow-k8s-2", "type": "arrow" },
-        { "id": "arrow-k8s-3", "type": "arrow" }
+        {
+          "id": "assoc-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-k8s-2",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-k8s-3",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774634634772,
       "link": null,
       "locked": false
     },
     {
       "id": "assoc-text",
       "type": "text",
-      "x": 890,
-      "y": 455,
-      "width": 270,
-      "height": 110,
+      "x": 925.323987474121,
+      "y": 512.0516803678256,
+      "width": 221.3000030517578,
+      "height": 52.5,
       "angle": 0,
       "strokeColor": "#1a1a1a",
       "backgroundColor": "transparent",
@@ -1018,28 +1178,28 @@
       "index": "c8",
       "roundness": null,
       "seed": 1107,
-      "version": 1,
-      "versionNonce": 1107,
+      "version": 54,
+      "versionNonce": 873697066,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
-      "text": "Pod Identity Association\nTerraform resource binding:\n(cluster, namespace, SA)\n→ role",
+      "text": "Pod Identity Association\nTerraform resource binding:\n(cluster, namespace, SA) → role",
       "fontSize": 14,
       "fontFamily": 1,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": "assoc",
-      "originalText": "Pod Identity Association\nTerraform resource binding:\n(cluster, namespace, SA)\n→ role",
+      "originalText": "Pod Identity Association\nTerraform resource binding:\n(cluster, namespace, SA) → role",
       "autoResize": true,
       "lineHeight": 1.25
     },
     {
       "id": "sts-pod",
       "type": "rectangle",
-      "x": 1300,
-      "y": 470,
+      "x": 930.7105192794879,
+      "y": 657.3703776539785,
       "width": 200,
       "height": 80,
       "angle": 0,
@@ -1053,27 +1213,38 @@
       "groupIds": [],
       "frameId": null,
       "index": "c9",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1108,
-      "version": 1,
-      "versionNonce": 1108,
+      "version": 136,
+      "versionNonce": 1911298538,
       "isDeleted": false,
       "boundElements": [
-        { "id": "sts-pod-text", "type": "text" },
-        { "id": "arrow-k8s-3", "type": "arrow" },
-        { "id": "arrow-k8s-4", "type": "arrow" }
+        {
+          "id": "sts-pod-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-k8s-3",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-k8s-4",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774634634772,
       "link": null,
       "locked": false
     },
     {
       "id": "sts-pod-text",
       "type": "text",
-      "x": 1310,
-      "y": 480,
-      "width": 180,
-      "height": 60,
+      "x": 986.4605192794879,
+      "y": 677.3703776539785,
+      "width": 88.5,
+      "height": 40,
       "angle": 0,
       "strokeColor": "#1a1a1a",
       "backgroundColor": "transparent",
@@ -1087,11 +1258,11 @@
       "index": "d0",
       "roundness": null,
       "seed": 1109,
-      "version": 1,
-      "versionNonce": 1109,
+      "version": 138,
+      "versionNonce": 1642417322,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
       "text": "AWS STS\nAssumeRole",
@@ -1107,10 +1278,10 @@
     {
       "id": "role-pod",
       "type": "rectangle",
-      "x": 1630,
-      "y": 430,
-      "width": 280,
-      "height": 160,
+      "x": 519.6356147794864,
+      "y": 624.1930178835601,
+      "width": 202.67674901213837,
+      "height": 146.35472041390682,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "#ffffff",
@@ -1122,27 +1293,38 @@
       "groupIds": [],
       "frameId": null,
       "index": "d1",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1110,
-      "version": 1,
-      "versionNonce": 1110,
+      "version": 205,
+      "versionNonce": 1235887978,
       "isDeleted": false,
       "boundElements": [
-        { "id": "role-pod-text", "type": "text" },
-        { "id": "arrow-k8s-4", "type": "arrow" },
-        { "id": "arrow-k8s-5", "type": "arrow" }
+        {
+          "id": "role-pod-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-k8s-4",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-k8s-5",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774634634772,
       "link": null,
       "locked": false
     },
     {
       "id": "role-pod-text",
       "type": "text",
-      "x": 1640,
-      "y": 440,
-      "width": 260,
-      "height": 140,
+      "x": 550.6489923373134,
+      "y": 644.8703780905134,
+      "width": 140.64999389648438,
+      "height": 105,
       "angle": 0,
       "strokeColor": "#1a1a1a",
       "backgroundColor": "transparent",
@@ -1156,11 +1338,11 @@
       "index": "d2",
       "roundness": null,
       "seed": 1111,
-      "version": 1,
-      "versionNonce": 1111,
+      "version": 170,
+      "versionNonce": 25537066,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
       "text": "rideshare-simulation\nIAM Role\ntrust: pods.eks.\namazonaws.com\nactions: AssumeRole,\nTagSession",
@@ -1176,10 +1358,10 @@
     {
       "id": "perms-pod",
       "type": "rectangle",
-      "x": 2040,
-      "y": 430,
-      "width": 280,
-      "height": 160,
+      "x": 110.53876146433767,
+      "y": 636.4873049325079,
+      "width": 220.87045512692958,
+      "height": 121.73545231601179,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "#ffffff",
@@ -1191,26 +1373,34 @@
       "groupIds": [],
       "frameId": null,
       "index": "d3",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1112,
-      "version": 1,
-      "versionNonce": 1112,
+      "version": 200,
+      "versionNonce": 543347946,
       "isDeleted": false,
       "boundElements": [
-        { "id": "perms-pod-text", "type": "text" },
-        { "id": "arrow-k8s-5", "type": "arrow" }
+        {
+          "id": "perms-pod-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-k8s-5",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1774634634772,
       "link": null,
       "locked": false
     },
     {
       "id": "perms-pod-text",
       "type": "text",
-      "x": 2050,
-      "y": 440,
-      "width": 260,
-      "height": 140,
+      "x": 138.09898902780247,
+      "y": 653.6050310905136,
+      "width": 165.75,
+      "height": 87.5,
       "angle": 0,
       "strokeColor": "#1a1a1a",
       "backgroundColor": "transparent",
@@ -1224,30 +1414,30 @@
       "index": "d4",
       "roundness": null,
       "seed": 1113,
-      "version": 1,
-      "versionNonce": 1113,
+      "version": 160,
+      "versionNonce": 667723690,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
-      "text": "Scoped Permissions\ne.g. simulation:\nS3 checkpoints R/W only\n\ne.g. loki:\nS3 loki bucket R/W only",
+      "text": "Scoped Permissions\ne.g. simulation:\nS3 checkpoints R/W only\ne.g. loki:\nS3 loki bucket R/W only",
       "fontSize": 14,
       "fontFamily": 1,
       "textAlign": "center",
       "verticalAlign": "middle",
       "containerId": "perms-pod",
-      "originalText": "Scoped Permissions\ne.g. simulation:\nS3 checkpoints R/W only\n\ne.g. loki:\nS3 loki bucket R/W only",
+      "originalText": "Scoped Permissions\ne.g. simulation:\nS3 checkpoints R/W only\ne.g. loki:\nS3 loki bucket R/W only",
       "autoResize": true,
       "lineHeight": 1.25
     },
     {
       "id": "arrow-k8s-1",
       "type": "arrow",
-      "x": 340,
-      "y": 510,
-      "width": 130,
-      "height": 0,
+      "x": 338.1614372654828,
+      "y": 539.4472350566598,
+      "width": 150.4578313206104,
+      "height": 0.002732572728746163,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "transparent",
@@ -1261,32 +1451,50 @@
       "index": "d5",
       "roundness": null,
       "seed": 2100,
-      "version": 1,
-      "versionNonce": 2100,
+      "version": 122,
+      "versionNonce": 804135530,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [130, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150.4578313206104,
+          0.002732572728746163
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "pod",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          1.023076923076923,
+          0.5001
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "pia",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          -0.02374268242747696,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-k8s-1",
       "type": "text",
-      "x": 355,
-      "y": 482,
+      "x": 365.973989,
+      "y": 511.438787,
       "width": 110,
       "height": 18,
       "angle": 0,
@@ -1302,11 +1510,11 @@
       "index": "d6",
       "roundness": null,
       "seed": 3100,
-      "version": 1,
-      "versionNonce": 3100,
+      "version": 48,
+      "versionNonce": 328353066,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
       "text": "1. AWS SDK call",
@@ -1322,10 +1530,10 @@
     {
       "id": "arrow-k8s-2",
       "type": "arrow",
-      "x": 750,
-      "y": 510,
-      "width": 130,
-      "height": 0,
+      "x": 753.3287094139068,
+      "y": 539.0642264827898,
+      "width": 149.83898570088388,
+      "height": 0.41049660013311495,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "transparent",
@@ -1339,32 +1547,50 @@
       "index": "d7",
       "roundness": null,
       "seed": 2101,
-      "version": 1,
-      "versionNonce": 2101,
+      "version": 131,
+      "versionNonce": 472125418,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [130, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          149.83898570088388,
+          -0.41049660013311495
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "pia",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          1.0237426824274771,
+          0.4966499156335969
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "assoc",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          -0.02365813169112674,
+          0.5033533745598336
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-k8s-2",
       "type": "text",
-      "x": 755,
-      "y": 482,
+      "x": 765.973989,
+      "y": 511.438787,
       "width": 130,
       "height": 18,
       "angle": 0,
@@ -1380,11 +1606,11 @@
       "index": "d8",
       "roundness": null,
       "seed": 3101,
-      "version": 1,
-      "versionNonce": 3101,
+      "version": 48,
+      "versionNonce": 766411434,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
       "text": "2. lookup association",
@@ -1400,10 +1626,10 @@
     {
       "id": "arrow-k8s-3",
       "type": "arrow",
-      "x": 1170,
-      "y": 510,
-      "width": 130,
-      "height": 0,
+      "x": 1032.655812003586,
+      "y": 596.7935074139068,
+      "width": 0.6590883381819594,
+      "height": 54.57687024007157,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "transparent",
@@ -1417,32 +1643,50 @@
       "index": "d9",
       "roundness": null,
       "seed": 2102,
-      "version": 1,
-      "versionNonce": 2102,
+      "version": 196,
+      "versionNonce": 1927060842,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [130, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.6590883381819594,
+          54.57687024007157
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "assoc",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          0.4869163552740623,
+          1.0571517542600746
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "sts-pod",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          0.5130219053114001,
+          -0.07499999999999858
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-k8s-3",
       "type": "text",
-      "x": 1190,
-      "y": 482,
+      "x": 1056.2520239039843,
+      "y": 610.8607836274293,
       "width": 100,
       "height": 18,
       "angle": 0,
@@ -1458,11 +1702,11 @@
       "index": "e0",
       "roundness": null,
       "seed": 3102,
-      "version": 1,
-      "versionNonce": 3102,
+      "version": 105,
+      "versionNonce": 150560810,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
       "text": "3. resolve role",
@@ -1478,10 +1722,10 @@
     {
       "id": "arrow-k8s-4",
       "type": "arrow",
-      "x": 1500,
-      "y": 510,
-      "width": 130,
-      "height": 0,
+      "x": 930.9813698576605,
+      "y": 697.8026820923058,
+      "width": 202.66900606603565,
+      "height": 0.4056590261557176,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "transparent",
@@ -1495,32 +1739,50 @@
       "index": "e1",
       "roundness": null,
       "seed": 2103,
-      "version": 1,
-      "versionNonce": 2103,
+      "version": 338,
+      "versionNonce": 737135338,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [130, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -202.66900606603565,
+          -0.4056590261557176
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "sts-pod",
-        "fixedPoint": [1, 0.5]
+        "mode": "inside",
+        "fixedPoint": [
+          0.0013542528908629947,
+          0.5054038054790908
+        ]
       },
       "endBinding": {
         "elementId": "role-pod",
-        "fixedPoint": [0, 0.5]
+        "mode": "orbit",
+        "fixedPoint": [
+          0.9999999999999997,
+          0.5001
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-k8s-4",
       "type": "text",
-      "x": 1510,
-      "y": 482,
+      "x": 781.8546780866192,
+      "y": 658.4400093896295,
       "width": 110,
       "height": 18,
       "angle": 0,
@@ -1536,11 +1798,11 @@
       "index": "e2",
       "roundness": null,
       "seed": 3103,
-      "version": 1,
-      "versionNonce": 3103,
+      "version": 102,
+      "versionNonce": 1649073578,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
       "text": "4. assume role",
@@ -1556,10 +1818,10 @@
     {
       "id": "arrow-k8s-5",
       "type": "arrow",
-      "x": 1910,
-      "y": 510,
-      "width": 130,
-      "height": 0,
+      "x": 513.6356147794864,
+      "y": 697.355031236435,
+      "width": 176.22639818821926,
+      "height": 0.013516289666426928,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "transparent",
@@ -1573,32 +1835,50 @@
       "index": "e3",
       "roundness": null,
       "seed": 2104,
-      "version": 1,
-      "versionNonce": 2104,
+      "version": 357,
+      "versionNonce": 691378282,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [130, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -176.22639818821926,
+          -0.013516289666426928
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "role-pod",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          -0.029603790416238906,
+          0.49989513932973834
+        ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "perms-pod",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          1.0271652448787314,
+          0.4998889711789953
+        ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-k8s-5",
       "type": "text",
-      "x": 1920,
-      "y": 482,
+      "x": 365.6297299671092,
+      "y": 655.1657961252808,
       "width": 120,
       "height": 18,
       "angle": 0,
@@ -1614,11 +1894,11 @@
       "index": "e4",
       "roundness": null,
       "seed": 3104,
-      "version": 1,
-      "versionNonce": 3104,
+      "version": 90,
+      "versionNonce": 544930602,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634634772,
       "link": null,
       "locked": false,
       "text": "5. temporary creds",
@@ -1636,7 +1916,8 @@
     "gridSize": 20,
     "gridStep": 5,
     "gridModeEnabled": false,
-    "viewBackgroundColor": "#ffffff"
+    "viewBackgroundColor": "#ffffff",
+    "lockedMultiSelections": {}
   },
   "files": {}
 }

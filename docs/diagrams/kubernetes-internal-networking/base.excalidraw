@@ -1,7 +1,7 @@
 {
   "type": "excalidraw",
   "version": 2,
-  "source": "diagrams",
+  "source": "https://excalidraw.com",
   "elements": [
     {
       "id": "title-text",
@@ -26,7 +26,7 @@
       "version": 1,
       "versionNonce": 100,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1,
       "link": null,
       "locked": false,
@@ -43,9 +43,9 @@
     {
       "id": "sg-rt",
       "type": "rectangle",
-      "x": 40,
+      "x": 53.00818136118067,
       "y": 380,
-      "width": 780,
+      "width": 779.9999996388194,
       "height": 370,
       "angle": 0,
       "strokeColor": "#1565c0",
@@ -62,8 +62,8 @@
         "type": 3
       },
       "seed": 101,
-      "version": 1,
-      "versionNonce": 101,
+      "version": 66,
+      "versionNonce": 735922602,
       "isDeleted": false,
       "boundElements": [
         {
@@ -71,17 +71,17 @@
           "type": "text"
         }
       ],
-      "updated": 1,
+      "updated": 1774635562270,
       "link": null,
       "locked": false
     },
     {
       "id": "sg-rt-label",
       "type": "text",
-      "x": 50,
+      "x": 58.00818136118067,
       "y": 385,
-      "width": 200,
-      "height": 25,
+      "width": 165.35000610351562,
+      "height": 22.5,
       "angle": 0,
       "strokeColor": "#1565c0",
       "backgroundColor": "transparent",
@@ -95,20 +95,20 @@
       "index": "a02",
       "roundness": null,
       "seed": 102,
-      "version": 1,
-      "versionNonce": 102,
+      "version": 56,
+      "versionNonce": 320726966,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555647,
       "link": null,
       "locked": false,
-      "text": "Real-Time Pipeline",
+      "text": " Real-Time Pipeline",
       "fontSize": 18,
       "fontFamily": 1,
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": "sg-rt",
-      "originalText": "Real-Time Pipeline",
+      "originalText": " Real-Time Pipeline",
       "autoResize": true,
       "lineHeight": 1.25
     },
@@ -117,7 +117,7 @@
       "type": "rectangle",
       "x": 880,
       "y": 80,
-      "width": 560,
+      "width": 528.633461653559,
       "height": 400,
       "angle": 0,
       "strokeColor": "#2e7d32",
@@ -134,8 +134,8 @@
         "type": 3
       },
       "seed": 103,
-      "version": 1,
-      "versionNonce": 103,
+      "version": 20,
+      "versionNonce": 162826166,
       "isDeleted": false,
       "boundElements": [
         {
@@ -143,17 +143,17 @@
           "type": "text"
         }
       ],
-      "updated": 1,
+      "updated": 1774635593114,
       "link": null,
       "locked": false
     },
     {
       "id": "sg-batch-label",
       "type": "text",
-      "x": 890,
+      "x": 885,
       "y": 85,
-      "width": 200,
-      "height": 25,
+      "width": 141.68333435058594,
+      "height": 22.5,
       "angle": 0,
       "strokeColor": "#2e7d32",
       "backgroundColor": "transparent",
@@ -167,20 +167,20 @@
       "index": "a04",
       "roundness": null,
       "seed": 104,
-      "version": 1,
-      "versionNonce": 104,
+      "version": 7,
+      "versionNonce": 2024933558,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635405496,
       "link": null,
       "locked": false,
-      "text": "Batch Pipeline",
+      "text": "  Batch Pipeline",
       "fontSize": 18,
       "fontFamily": 1,
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": "sg-batch",
-      "originalText": "Batch Pipeline",
+      "originalText": "  Batch Pipeline",
       "autoResize": true,
       "lineHeight": 1.25
     },
@@ -189,7 +189,7 @@
       "type": "rectangle",
       "x": 880,
       "y": 540,
-      "width": 560,
+      "width": 528.633462,
       "height": 210,
       "angle": 0,
       "strokeColor": "#e65100",
@@ -206,8 +206,8 @@
         "type": 3
       },
       "seed": 105,
-      "version": 1,
-      "versionNonce": 105,
+      "version": 22,
+      "versionNonce": 383793846,
       "isDeleted": false,
       "boundElements": [
         {
@@ -215,17 +215,17 @@
           "type": "text"
         }
       ],
-      "updated": 1,
+      "updated": 1774635601137,
       "link": null,
       "locked": false
     },
     {
       "id": "sg-store-label",
       "type": "text",
-      "x": 890,
+      "x": 885,
       "y": 545,
-      "width": 100,
-      "height": 25,
+      "width": 69.68333435058594,
+      "height": 22.5,
       "angle": 0,
       "strokeColor": "#e65100",
       "backgroundColor": "transparent",
@@ -239,11 +239,11 @@
       "index": "a06",
       "roundness": null,
       "seed": 106,
-      "version": 1,
-      "versionNonce": 106,
+      "version": 3,
+      "versionNonce": 361757878,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635595015,
       "link": null,
       "locked": false,
       "text": "Storage",
@@ -259,8 +259,8 @@
     {
       "id": "sg-mon",
       "type": "rectangle",
-      "x": 40,
-      "y": 80,
+      "x": 53.00818093585528,
+      "y": 81.94546347100513,
       "width": 780,
       "height": 260,
       "angle": 0,
@@ -278,8 +278,8 @@
         "type": 3
       },
       "seed": 107,
-      "version": 1,
-      "versionNonce": 107,
+      "version": 38,
+      "versionNonce": 1321116458,
       "isDeleted": false,
       "boundElements": [
         {
@@ -287,17 +287,17 @@
           "type": "text"
         }
       ],
-      "updated": 1,
+      "updated": 1774635408304,
       "link": null,
       "locked": false
     },
     {
       "id": "sg-mon-label",
       "type": "text",
-      "x": 50,
-      "y": 85,
-      "width": 120,
-      "height": 25,
+      "x": 58.00818093585528,
+      "y": 86.94546347100513,
+      "width": 94.33333587646484,
+      "height": 22.5,
       "angle": 0,
       "strokeColor": "#6a1b9a",
       "backgroundColor": "transparent",
@@ -311,29 +311,29 @@
       "index": "a08",
       "roundness": null,
       "seed": 108,
-      "version": 1,
-      "versionNonce": 108,
+      "version": 39,
+      "versionNonce": 1410907050,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635412346,
       "link": null,
       "locked": false,
-      "text": "Monitoring",
+      "text": " Monitoring",
       "fontSize": 18,
       "fontFamily": 1,
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": "sg-mon",
-      "originalText": "Monitoring",
+      "originalText": " Monitoring",
       "autoResize": true,
       "lineHeight": 1.25
     },
     {
       "id": "node-sim",
       "type": "rectangle",
-      "x": 440,
-      "y": 420,
-      "width": 180,
+      "x": 629.7285176578253,
+      "y": 420.61006328688615,
+      "width": 162.91822588694072,
       "height": 50,
       "angle": 0,
       "strokeColor": "#1565c0",
@@ -350,21 +350,13 @@
         "type": 3
       },
       "seed": 200,
-      "version": 1,
-      "versionNonce": 200,
+      "version": 172,
+      "versionNonce": 565412086,
       "isDeleted": false,
       "boundElements": [
         {
           "id": "node-sim-text",
           "type": "text"
-        },
-        {
-          "id": "arrow-sim-kafka",
-          "type": "arrow"
-        },
-        {
-          "id": "arrow-sim-osrm",
-          "type": "arrow"
         },
         {
           "id": "arrow-sim-rds",
@@ -373,19 +365,27 @@
         {
           "id": "arrow-prom-sim",
           "type": "arrow"
+        },
+        {
+          "id": "arrow-sim-kafka",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-sim-osrm",
+          "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774635555647,
       "link": null,
       "locked": false
     },
     {
       "id": "node-sim-text",
       "type": "text",
-      "x": 455,
-      "y": 430,
-      "width": 150,
-      "height": 30,
+      "x": 649.070965714821,
+      "y": 435.61006328688615,
+      "width": 124.23332977294922,
+      "height": 20,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -399,11 +399,11 @@
       "index": "a10",
       "roundness": null,
       "seed": 201,
-      "version": 1,
-      "versionNonce": 201,
+      "version": 162,
+      "versionNonce": 348385846,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555648,
       "link": null,
       "locked": false,
       "text": "simulation:8000",
@@ -419,8 +419,8 @@
     {
       "id": "node-kafka",
       "type": "rectangle",
-      "x": 80,
-      "y": 590,
+      "x": 415.92036884097234,
+      "y": 664.4277300640445,
       "width": 230,
       "height": 60,
       "angle": 0,
@@ -438,8 +438,8 @@
         "type": 3
       },
       "seed": 202,
-      "version": 1,
-      "versionNonce": 202,
+      "version": 381,
+      "versionNonce": 849892854,
       "isDeleted": false,
       "boundElements": [
         {
@@ -447,11 +447,11 @@
           "type": "text"
         },
         {
-          "id": "arrow-sim-kafka",
+          "id": "arrow-sp-kafka",
           "type": "arrow"
         },
         {
-          "id": "arrow-sp-kafka",
+          "id": "arrow-sim-kafka",
           "type": "arrow"
         },
         {
@@ -459,17 +459,17 @@
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774635555649,
       "link": null,
       "locked": false
     },
     {
       "id": "node-kafka-text",
       "type": "text",
-      "x": 95,
-      "y": 598,
-      "width": 200,
-      "height": 44,
+      "x": 456.28645770815984,
+      "y": 676.9277300640445,
+      "width": 149.267822265625,
+      "height": 35,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -483,11 +483,11 @@
       "index": "a12",
       "roundness": null,
       "seed": 203,
-      "version": 1,
-      "versionNonce": 203,
+      "version": 373,
+      "versionNonce": 978724662,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "text": "kafka-0.kafka:29092\nheadless StatefulSet",
@@ -503,9 +503,9 @@
     {
       "id": "node-sr",
       "type": "rectangle",
-      "x": 340,
-      "y": 590,
-      "width": 210,
+      "x": 79.27840160625533,
+      "y": 533.2641074101956,
+      "width": 179.49683194096542,
       "height": 50,
       "angle": 0,
       "strokeColor": "#1565c0",
@@ -522,8 +522,8 @@
         "type": 3
       },
       "seed": 204,
-      "version": 1,
-      "versionNonce": 204,
+      "version": 142,
+      "versionNonce": 1133662646,
       "isDeleted": false,
       "boundElements": [
         {
@@ -535,17 +535,17 @@
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774635555649,
       "link": null,
       "locked": false
     },
     {
       "id": "node-sr-text",
       "type": "text",
-      "x": 355,
-      "y": 600,
-      "width": 180,
-      "height": 30,
+      "x": 97.40181757673804,
+      "y": 549.5141074101956,
+      "width": 143.25,
+      "height": 17.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -559,11 +559,11 @@
       "index": "a14",
       "roundness": null,
       "seed": 205,
-      "version": 1,
-      "versionNonce": 205,
+      "version": 124,
+      "versionNonce": 1544202998,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "text": "schema-registry:8081",
@@ -579,8 +579,8 @@
     {
       "id": "node-sp",
       "type": "rectangle",
-      "x": 120,
-      "y": 420,
+      "x": 207.01451747924992,
+      "y": 420.61006336118066,
       "width": 220,
       "height": 50,
       "angle": 0,
@@ -598,8 +598,8 @@
         "type": 3
       },
       "seed": 206,
-      "version": 1,
-      "versionNonce": 206,
+      "version": 31,
+      "versionNonce": 245750838,
       "isDeleted": false,
       "boundElements": [
         {
@@ -607,33 +607,33 @@
           "type": "text"
         },
         {
-          "id": "arrow-sp-kafka",
-          "type": "arrow"
-        },
-        {
           "id": "arrow-sp-sr",
-          "type": "arrow"
-        },
-        {
-          "id": "arrow-sp-redis",
           "type": "arrow"
         },
         {
           "id": "arrow-prom-sp",
           "type": "arrow"
+        },
+        {
+          "id": "arrow-sp-kafka",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-sp-redis",
+          "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774635555649,
       "link": null,
       "locked": false
     },
     {
       "id": "node-sp-text",
       "type": "text",
-      "x": 135,
-      "y": 430,
-      "width": 190,
-      "height": 30,
+      "x": 236.2346026232929,
+      "y": 436.86006336118066,
+      "width": 161.55982971191406,
+      "height": 17.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -647,11 +647,11 @@
       "index": "a16",
       "roundness": null,
       "seed": 207,
-      "version": 1,
-      "versionNonce": 207,
+      "version": 29,
+      "versionNonce": 1095296374,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "text": "stream-processor:8080",
@@ -667,9 +667,9 @@
     {
       "id": "node-redis",
       "type": "rectangle",
-      "x": 570,
-      "y": 590,
-      "width": 150,
+      "x": 193.97642634310455,
+      "y": 666.8679835087672,
+      "width": 119.49683194096536,
       "height": 50,
       "angle": 0,
       "strokeColor": "#1565c0",
@@ -686,8 +686,8 @@
         "type": 3
       },
       "seed": 208,
-      "version": 1,
-      "versionNonce": 208,
+      "version": 144,
+      "versionNonce": 991592438,
       "isDeleted": false,
       "boundElements": [
         {
@@ -699,17 +699,17 @@
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774635555649,
       "link": null,
       "locked": false
     },
     {
       "id": "node-redis-text",
       "type": "text",
-      "x": 585,
-      "y": 600,
-      "width": 120,
-      "height": 30,
+      "x": 218.59984231358723,
+      "y": 683.1179835087672,
+      "width": 70.25,
+      "height": 17.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -723,11 +723,11 @@
       "index": "a18",
       "roundness": null,
       "seed": 209,
-      "version": 1,
-      "versionNonce": 209,
+      "version": 130,
+      "versionNonce": 116592950,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "text": "redis:6379",
@@ -743,10 +743,10 @@
     {
       "id": "node-osrm",
       "type": "rectangle",
-      "x": 580,
-      "y": 680,
-      "width": 150,
-      "height": 50,
+      "x": 427.86967989641846,
+      "y": 509.79232223058693,
+      "width": 103.63518455026735,
+      "height": 40.23898622110883,
       "angle": 0,
       "strokeColor": "#1565c0",
       "backgroundColor": "#ffffff",
@@ -762,8 +762,8 @@
         "type": 3
       },
       "seed": 210,
-      "version": 1,
-      "versionNonce": 210,
+      "version": 217,
+      "versionNonce": 69696118,
       "isDeleted": false,
       "boundElements": [
         {
@@ -775,17 +775,17 @@
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774635555649,
       "link": null,
       "locked": false
     },
     {
       "id": "node-osrm-text",
       "type": "text",
-      "x": 595,
-      "y": 690,
-      "width": 120,
-      "height": 30,
+      "x": 444.10394010978456,
+      "y": 521.1618153411414,
+      "width": 71.16666412353516,
+      "height": 17.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -799,11 +799,11 @@
       "index": "a20",
       "roundness": null,
       "seed": 211,
-      "version": 1,
-      "versionNonce": 211,
+      "version": 169,
+      "versionNonce": 1232911286,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "text": "osrm:5000",
@@ -838,8 +838,8 @@
         "type": 3
       },
       "seed": 212,
-      "version": 1,
-      "versionNonce": 212,
+      "version": 5,
+      "versionNonce": 769194445,
       "isDeleted": false,
       "boundElements": [
         {
@@ -855,17 +855,17 @@
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774374157535,
       "link": null,
       "locked": false
     },
     {
       "id": "node-bi-text",
       "type": "text",
-      "x": 925,
-      "y": 350,
-      "width": 150,
-      "height": 30,
+      "x": 947.0030517578125,
+      "y": 356.25,
+      "width": 105.993896484375,
+      "height": 17.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -879,11 +879,11 @@
       "index": "a22",
       "roundness": null,
       "seed": 213,
-      "version": 1,
-      "versionNonce": 213,
+      "version": 2,
+      "versionNonce": 1495050413,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774374126083,
       "link": null,
       "locked": false,
       "text": "bronze-ingestion",
@@ -918,8 +918,8 @@
         "type": 3
       },
       "seed": 214,
-      "version": 1,
-      "versionNonce": 214,
+      "version": 2,
+      "versionNonce": 1467871990,
       "isDeleted": false,
       "boundElements": [
         {
@@ -935,17 +935,17 @@
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774634738909,
       "link": null,
       "locked": false
     },
     {
       "id": "node-af-text",
       "type": "text",
-      "x": 1065,
-      "y": 123,
-      "width": 200,
-      "height": 44,
+      "x": 1089.6166687011719,
+      "y": 127.5,
+      "width": 150.76666259765625,
+      "height": 35,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -959,11 +959,11 @@
       "index": "a24",
       "roundness": null,
       "seed": 215,
-      "version": 1,
-      "versionNonce": 215,
+      "version": 2,
+      "versionNonce": 1217531114,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634738910,
       "link": null,
       "locked": false,
       "text": "airflow:8082\nscheduler + webserver",
@@ -998,8 +998,8 @@
         "type": 3
       },
       "seed": 216,
-      "version": 1,
-      "versionNonce": 216,
+      "version": 3,
+      "versionNonce": 2085923469,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1015,25 +1015,25 @@
           "type": "arrow"
         },
         {
-          "id": "arrow-trino-s3",
+          "id": "arrow-graf-trino",
           "type": "arrow"
         },
         {
-          "id": "arrow-graf-trino",
+          "id": "arrow-trino-s3",
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774374157536,
       "link": null,
       "locked": false
     },
     {
       "id": "node-trino-text",
       "type": "text",
-      "x": 1115,
-      "y": 240,
-      "width": 130,
-      "height": 30,
+      "x": 1142.3190460205078,
+      "y": 246.25,
+      "width": 75.36190795898438,
+      "height": 17.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1047,11 +1047,11 @@
       "index": "a26",
       "roundness": null,
       "seed": 217,
-      "version": 1,
-      "versionNonce": 217,
+      "version": 2,
+      "versionNonce": 823771235,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774374157537,
       "link": null,
       "locked": false,
       "text": "trino:8080",
@@ -1130,7 +1130,7 @@
       "version": 1,
       "versionNonce": 219,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1,
       "link": null,
       "locked": false,
@@ -1166,8 +1166,8 @@
         "type": 3
       },
       "seed": 220,
-      "version": 1,
-      "versionNonce": 220,
+      "version": 32,
+      "versionNonce": 545968323,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1183,17 +1183,17 @@
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774374157536,
       "link": null,
       "locked": false
     },
     {
       "id": "node-s3-text",
       "type": "text",
-      "x": 925,
-      "y": 590,
-      "width": 150,
-      "height": 30,
+      "x": 941.0110549926758,
+      "y": 596.25,
+      "width": 117.97789001464844,
+      "height": 17.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1207,11 +1207,11 @@
       "index": "a30",
       "roundness": null,
       "seed": 221,
-      "version": 1,
-      "versionNonce": 221,
+      "version": 29,
+      "versionNonce": 517591277,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774374157537,
       "link": null,
       "locked": false,
       "text": "S3 / MinIO:9000",
@@ -1286,7 +1286,7 @@
       "version": 1,
       "versionNonce": 223,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1,
       "link": null,
       "locked": false,
@@ -1322,8 +1322,8 @@
         "type": 3
       },
       "seed": 224,
-      "version": 1,
-      "versionNonce": 224,
+      "version": 15,
+      "versionNonce": 1573347178,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1335,17 +1335,17 @@
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774634738909,
       "link": null,
       "locked": false
     },
     {
       "id": "node-pgaf-text",
       "type": "text",
-      "x": 1145,
-      "y": 670,
-      "width": 190,
-      "height": 30,
+      "x": 1165.058334350586,
+      "y": 676.25,
+      "width": 149.88333129882812,
+      "height": 17.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1359,11 +1359,11 @@
       "index": "a34",
       "roundness": null,
       "seed": 225,
-      "version": 1,
-      "versionNonce": 225,
+      "version": 16,
+      "versionNonce": 222028330,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634738910,
       "link": null,
       "locked": false,
       "text": "airflow-postgres:5432",
@@ -1438,7 +1438,7 @@
       "version": 1,
       "versionNonce": 227,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1,
       "link": null,
       "locked": false,
@@ -1506,10 +1506,10 @@
     {
       "id": "node-graf-text",
       "type": "text",
-      "x": 535,
-      "y": 130,
-      "width": 140,
-      "height": 30,
+      "x": 553.375,
+      "y": 135,
+      "width": 103.25,
+      "height": 20,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1523,11 +1523,11 @@
       "index": "a38",
       "roundness": null,
       "seed": 229,
-      "version": 1,
-      "versionNonce": 229,
+      "version": 3,
+      "versionNonce": 786670954,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634817403,
       "link": null,
       "locked": false,
       "text": "grafana:3001",
@@ -1594,10 +1594,10 @@
     {
       "id": "node-prom-text",
       "type": "text",
-      "x": 95,
-      "y": 250,
-      "width": 170,
-      "height": 30,
+      "x": 114.33333587646484,
+      "y": 255,
+      "width": 131.3333282470703,
+      "height": 20,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1611,11 +1611,11 @@
       "index": "a40",
       "roundness": null,
       "seed": 231,
-      "version": 1,
-      "versionNonce": 231,
+      "version": 3,
+      "versionNonce": 1266231350,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634819337,
       "link": null,
       "locked": false,
       "text": "prometheus:9090",
@@ -1631,8 +1631,8 @@
     {
       "id": "node-loki",
       "type": "rectangle",
-      "x": 350,
-      "y": 240,
+      "x": 383.0728790070873,
+      "y": 255.56370776804113,
       "width": 150,
       "height": 50,
       "angle": 0,
@@ -1650,8 +1650,8 @@
         "type": 3
       },
       "seed": 232,
-      "version": 1,
-      "versionNonce": 232,
+      "version": 43,
+      "versionNonce": 1360069482,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1659,25 +1659,25 @@
           "type": "text"
         },
         {
-          "id": "arrow-otel-loki",
+          "id": "arrow-graf-loki",
           "type": "arrow"
         },
         {
-          "id": "arrow-graf-loki",
+          "id": "arrow-otel-loki",
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774634828335,
       "link": null,
       "locked": false
     },
     {
       "id": "node-loki-text",
       "type": "text",
-      "x": 365,
-      "y": 250,
-      "width": 120,
-      "height": 30,
+      "x": 425.3395454194408,
+      "y": 270.5637077680411,
+      "width": 65.46666717529297,
+      "height": 20,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1691,11 +1691,11 @@
       "index": "a42",
       "roundness": null,
       "seed": 233,
-      "version": 1,
-      "versionNonce": 233,
+      "version": 43,
+      "versionNonce": 371007978,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634814821,
       "link": null,
       "locked": false,
       "text": "loki:3100",
@@ -1711,8 +1711,8 @@
     {
       "id": "node-tempo",
       "type": "rectangle",
-      "x": 570,
-      "y": 240,
+      "x": 631.6063432484959,
+      "y": 272.42439118341895,
       "width": 160,
       "height": 50,
       "angle": 0,
@@ -1730,8 +1730,8 @@
         "type": 3
       },
       "seed": 234,
-      "version": 1,
-      "versionNonce": 234,
+      "version": 37,
+      "versionNonce": 365581174,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1747,17 +1747,17 @@
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774634909327,
       "link": null,
       "locked": false
     },
     {
       "id": "node-tempo-text",
       "type": "text",
-      "x": 585,
-      "y": 250,
-      "width": 130,
-      "height": 30,
+      "x": 670.3063440114354,
+      "y": 287.42439118341895,
+      "width": 82.5999984741211,
+      "height": 20,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1771,11 +1771,11 @@
       "index": "a44",
       "roundness": null,
       "seed": 235,
-      "version": 1,
-      "versionNonce": 235,
+      "version": 39,
+      "versionNonce": 861697206,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634909327,
       "link": null,
       "locked": false,
       "text": "tempo:4317",
@@ -1791,7 +1791,7 @@
     {
       "id": "node-otel",
       "type": "rectangle",
-      "x": 150,
+      "x": 104.60585234321348,
       "y": 120,
       "width": 200,
       "height": 50,
@@ -1810,8 +1810,8 @@
         "type": 3
       },
       "seed": 236,
-      "version": 1,
-      "versionNonce": 236,
+      "version": 22,
+      "versionNonce": 819373622,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1831,17 +1831,17 @@
           "type": "arrow"
         }
       ],
-      "updated": 1,
+      "updated": 1774634870421,
       "link": null,
       "locked": false
     },
     {
       "id": "node-otel-text",
       "type": "text",
-      "x": 165,
-      "y": 130,
-      "width": 170,
-      "height": 30,
+      "x": 133.4891836420416,
+      "y": 135,
+      "width": 142.23333740234375,
+      "height": 20,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1855,11 +1855,11 @@
       "index": "a46",
       "roundness": null,
       "seed": 237,
-      "version": 1,
-      "versionNonce": 237,
+      "version": 24,
+      "versionNonce": 919629686,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634870421,
       "link": null,
       "locked": false,
       "text": "otel-collector:4317",
@@ -1873,73 +1873,13 @@
       "lineHeight": 1.25
     },
     {
-      "id": "arrow-sim-kafka",
-      "type": "arrow",
-      "x": 440,
-      "y": 455,
-      "width": 250,
-      "height": 155,
-      "angle": 0,
-      "strokeColor": "#1e1e1e",
-      "backgroundColor": "transparent",
-      "fillStyle": "solid",
-      "strokeWidth": 2,
-      "strokeStyle": "solid",
-      "roughness": 0,
-      "opacity": 100,
-      "groupIds": [],
-      "frameId": null,
-      "index": "b00",
-      "roundness": null,
-      "seed": 300,
-      "version": 1,
-      "versionNonce": 300,
-      "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
-      "link": null,
-      "locked": false,
-      "points": [
-        [
-          0,
-          0
-        ],
-        [
-          -130,
-          80
-        ],
-        [
-          -250,
-          155
-        ]
-      ],
-      "lastCommittedPoint": null,
-      "startBinding": {
-        "elementId": "node-sim",
-        "fixedPoint": [
-          0,
-          0.7
-        ]
-      },
-      "endBinding": {
-        "elementId": "node-kafka",
-        "fixedPoint": [
-          0.5,
-          0
-        ]
-      },
-      "startArrowhead": null,
-      "endArrowhead": "arrow",
-      "elbowed": false
-    },
-    {
       "id": "label-sim-kafka",
       "type": "text",
-      "x": 250,
-      "y": 480,
+      "x": 555.2977076713833,
+      "y": 550.0377934252251,
       "width": 120,
       "height": 18,
-      "angle": 0,
+      "angle": 5.367434964835482,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -1952,11 +1892,11 @@
       "index": "b01",
       "roundness": null,
       "seed": 301,
-      "version": 1,
-      "versionNonce": 301,
+      "version": 230,
+      "versionNonce": 1293407478,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "text": "publish events",
@@ -1972,10 +1912,10 @@
     {
       "id": "arrow-sim-osrm",
       "type": "arrow",
-      "x": 530,
-      "y": 470,
-      "width": 125,
-      "height": 210,
+      "x": 632.138455350088,
+      "y": 474.34722408927854,
+      "width": 97.41779982265427,
+      "height": 35.493829163667385,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1989,11 +1929,11 @@
       "index": "b02",
       "roundness": null,
       "seed": 302,
-      "version": 1,
-      "versionNonce": 302,
+      "version": 377,
+      "versionNonce": 2021508662,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "points": [
@@ -2002,37 +1942,40 @@
           0
         ],
         [
-          125,
-          210
+          -97.41779982265427,
+          35.493829163667385
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-sim",
         "fixedPoint": [
-          0.5,
-          1
+          0.014792314850857203,
+          1.0747432160478478
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-osrm",
         "fixedPoint": [
-          0.5,
-          0
+          1.0310299160917509,
+          0.0012110400120724045
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-sim-osrm",
       "type": "text",
-      "x": 570,
-      "y": 550,
+      "x": 498.637029793379,
+      "y": 463.7294820440051,
       "width": 110,
       "height": 18,
-      "angle": 0,
+      "angle": 5.973564782258555,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -2045,11 +1988,11 @@
       "index": "b03",
       "roundness": null,
       "seed": 303,
-      "version": 1,
-      "versionNonce": 303,
+      "version": 169,
+      "versionNonce": 1016303478,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "text": "route geometry",
@@ -2065,10 +2008,10 @@
     {
       "id": "arrow-sim-rds",
       "type": "arrow",
-      "x": 620,
-      "y": 445,
-      "width": 290,
-      "height": 245,
+      "x": 754.9034354693098,
+      "y": 470.6100632868861,
+      "width": 195.86867445567646,
+      "height": 183.3899367131138,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2082,11 +2025,11 @@
       "index": "b04",
       "roundness": null,
       "seed": 304,
-      "version": 1,
-      "versionNonce": 304,
+      "version": 167,
+      "versionNonce": 1194605430,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555648,
       "link": null,
       "locked": false,
       "points": [
@@ -2095,37 +2038,40 @@
           0
         ],
         [
-          290,
-          245
+          195.86867445567646,
+          183.3899367131138
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "inside",
         "elementId": "node-sim",
         "fixedPoint": [
-          1,
-          0.5
+          0.7683297380021271,
+          0.9999999999999989
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-rds",
         "fixedPoint": [
-          0,
-          0.5
+          0.3746933518108975,
+          0.37469335181089986
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-sim-rds",
       "type": "text",
-      "x": 740,
-      "y": 540,
+      "x": 782.9434215037575,
+      "y": 524.7484159704826,
       "width": 120,
       "height": 18,
-      "angle": 0,
+      "angle": 0.7790907064373247,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -2138,11 +2084,11 @@
       "index": "b05",
       "roundness": null,
       "seed": 305,
-      "version": 1,
-      "versionNonce": 305,
+      "version": 98,
+      "versionNonce": 1388172266,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635571771,
       "link": null,
       "locked": false,
       "text": "checkpoint state",
@@ -2158,10 +2104,10 @@
     {
       "id": "arrow-sp-kafka",
       "type": "arrow",
-      "x": 195,
-      "y": 470,
-      "width": 0,
-      "height": 120,
+      "x": 345.60164911111946,
+      "y": 476.6100633611806,
+      "width": 162.3478967458978,
+      "height": 181.81766670286385,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2175,11 +2121,11 @@
       "index": "b06",
       "roundness": null,
       "seed": 306,
-      "version": 1,
-      "versionNonce": 306,
+      "version": 403,
+      "versionNonce": 631124150,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "points": [
@@ -2188,37 +2134,40 @@
           0
         ],
         [
-          0,
-          120
+          162.3478967458978,
+          181.81766670286385
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-sp",
         "fixedPoint": [
-          0.34,
-          1
+          0.6299415074175888,
+          1.1199999999999988
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-kafka",
         "fixedPoint": [
-          0.5,
-          0
+          0.4001268565914996,
+          -0.1
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-sp-kafka",
       "type": "text",
-      "x": 200,
-      "y": 510,
+      "x": 357.29129712558387,
+      "y": 566.006336118069,
       "width": 110,
       "height": 18,
-      "angle": 0,
+      "angle": 0.8314659414298866,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -2231,11 +2180,11 @@
       "index": "b07",
       "roundness": null,
       "seed": 307,
-      "version": 1,
-      "versionNonce": 307,
+      "version": 141,
+      "versionNonce": 1866639862,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "text": "consume events",
@@ -2251,10 +2200,10 @@
     {
       "id": "arrow-sp-sr",
       "type": "arrow",
-      "x": 310,
-      "y": 470,
-      "width": 135,
-      "height": 120,
+      "x": 276.3324748514398,
+      "y": 476.61006336118066,
+      "width": 66.52119271631142,
+      "height": 50.65404404901494,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2268,11 +2217,11 @@
       "index": "b08",
       "roundness": null,
       "seed": 308,
-      "version": 1,
-      "versionNonce": 308,
+      "version": 170,
+      "versionNonce": 411433782,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "points": [
@@ -2281,34 +2230,37 @@
           0
         ],
         [
-          135,
-          120
+          -66.52119271631142,
+          50.65404404901494
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-sp",
         "fixedPoint": [
-          0.86,
-          1
+          0.315081624419045,
+          1.12
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-sr",
         "fixedPoint": [
-          0.5,
-          0
+          0.7272155119250457,
+          -0.12
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-sp-sr",
       "type": "text",
-      "x": 355,
-      "y": 510,
+      "x": 114.41049252521825,
+      "y": 482.5471487468689,
       "width": 120,
       "height": 18,
       "angle": 0,
@@ -2324,11 +2276,11 @@
       "index": "b09",
       "roundness": null,
       "seed": 309,
-      "version": 1,
-      "versionNonce": 309,
+      "version": 121,
+      "versionNonce": 2009932918,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "text": "validate schemas",
@@ -2344,10 +2296,10 @@
     {
       "id": "arrow-sp-redis",
       "type": "arrow",
-      "x": 340,
-      "y": 450,
-      "width": 230,
-      "height": 160,
+      "x": 307.1217297469356,
+      "y": 476.61006336118066,
+      "width": 53.47655198797571,
+      "height": 184.25792014758656,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2361,11 +2313,11 @@
       "index": "b10",
       "roundness": null,
       "seed": 310,
-      "version": 1,
-      "versionNonce": 310,
+      "version": 270,
+      "versionNonce": 1323115958,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "points": [
@@ -2374,38 +2326,40 @@
           0
         ],
         [
-          115,
-          0
-        ],
-        [
-          230,
-          160
+          -53.47655198797571,
+          184.25792014758656
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "node-sp",
+        "mode": "orbit",
         "fixedPoint": [
-          1,
-          0.6
+          0.455032783034935,
+          1.12
         ]
       },
       "endBinding": {
         "elementId": "node-redis",
+        "mode": "orbit",
         "fixedPoint": [
-          0.3,
-          0
+          0.4993333333333332,
+          -0.12
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false,
+      "fixedSegments": null,
+      "startIsSpecial": null,
+      "endIsSpecial": null
     },
     {
       "id": "label-sp-redis",
       "type": "text",
-      "x": 380,
-      "y": 490,
+      "x": 154.66207655473553,
+      "y": 608.9623554302351,
       "width": 100,
       "height": 18,
       "angle": 0,
@@ -2421,11 +2375,16 @@
       "index": "b11",
       "roundness": null,
       "seed": 311,
-      "version": 1,
-      "versionNonce": 311,
+      "version": 214,
+      "versionNonce": 1591410422,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [
+        {
+          "id": "arrow-sim-kafka",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "text": "fan-out state",
@@ -2439,12 +2398,74 @@
       "lineHeight": 1.25
     },
     {
+      "id": "arrow-sim-kafka",
+      "type": "arrow",
+      "x": 687.410210968603,
+      "y": 476.6100632868861,
+      "width": 130.2234042099351,
+      "height": 181.81766677715837,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "b11V",
+      "roundness": null,
+      "seed": 300,
+      "version": 757,
+      "versionNonce": 2085335094,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1774635555649,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -130.2234042099351,
+          181.81766677715837
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": {
+        "elementId": "node-sim",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.3540530410072519,
+          1.1199999999999988
+        ]
+      },
+      "endBinding": {
+        "elementId": "node-kafka",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.6142019039899809,
+          -0.1
+        ]
+      },
+      "startArrowhead": null,
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "moveMidPointsWithElement": false,
+      "fixedSegments": null,
+      "startIsSpecial": null,
+      "endIsSpecial": null
+    },
+    {
       "id": "arrow-bi-kafka",
       "type": "arrow",
-      "x": 910,
-      "y": 375,
-      "width": 600,
-      "height": 240,
+      "x": 929.09511478519,
+      "y": 396,
+      "width": 350.2565927498375,
+      "height": 262.42773006404445,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2458,11 +2479,11 @@
       "index": "b12",
       "roundness": null,
       "seed": 312,
-      "version": 1,
-      "versionNonce": 312,
+      "version": 469,
+      "versionNonce": 1186451574,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "points": [
@@ -2471,41 +2492,43 @@
           0
         ],
         [
-          -300,
-          120
-        ],
-        [
-          -600,
-          240
+          -350.2565927498375,
+          262.42773006404445
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "node-bi",
+        "mode": "orbit",
         "fixedPoint": [
-          0,
-          0.7
+          0.23928772959046493,
+          0.7607122704095332
         ]
       },
       "endBinding": {
         "elementId": "node-kafka",
+        "mode": "orbit",
         "fixedPoint": [
-          1,
-          0.5
+          0.5097573152658482,
+          0.47034931426087306
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false,
+      "fixedSegments": null,
+      "startIsSpecial": null,
+      "endIsSpecial": null
     },
     {
       "id": "label-bi-kafka",
       "type": "text",
-      "x": 620,
-      "y": 450,
+      "x": 648.0792000911072,
+      "y": 541.9068324314452,
       "width": 110,
       "height": 18,
-      "angle": 0,
+      "angle": 5.617416144361428,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -2518,11 +2541,11 @@
       "index": "b13",
       "roundness": null,
       "seed": 313,
-      "version": 1,
-      "versionNonce": 313,
+      "version": 311,
+      "versionNonce": 372135850,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635579114,
       "link": null,
       "locked": false,
       "text": "consume events",
@@ -2555,11 +2578,11 @@
       "index": "b14",
       "roundness": null,
       "seed": 314,
-      "version": 1,
-      "versionNonce": 314,
+      "version": 31,
+      "versionNonce": 6847501,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774374157538,
       "link": null,
       "locked": false,
       "points": [
@@ -2574,17 +2597,19 @@
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-bi",
         "fixedPoint": [
-          0.5,
-          1
+          0.5001,
+          0.5001
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-s3",
         "fixedPoint": [
-          0.5,
-          0
+          0.5001,
+          0.5001
         ]
       },
       "startArrowhead": null,
@@ -2594,10 +2619,10 @@
     {
       "id": "label-bi-s3",
       "type": "text",
-      "x": 1010,
-      "y": 470,
-      "width": 120,
-      "height": 18,
+      "x": 1087.025278523008,
+      "y": 427.33951644195366,
+      "width": 77.38333129882812,
+      "height": 32.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2611,30 +2636,30 @@
       "index": "b15",
       "roundness": null,
       "seed": 315,
-      "version": 1,
-      "versionNonce": 315,
+      "version": 117,
+      "versionNonce": 860335478,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635523603,
       "link": null,
       "locked": false,
-      "text": "write bronze layer",
+      "text": "write\nbronze layer",
       "fontSize": 13,
       "fontFamily": 1,
       "textAlign": "center",
       "verticalAlign": "top",
       "containerId": null,
-      "originalText": "write bronze layer",
+      "originalText": "write\nbronze layer",
       "autoResize": true,
       "lineHeight": 1.25
     },
     {
       "id": "arrow-af-trino",
       "type": "arrow",
-      "x": 1165,
-      "y": 175,
-      "width": 15,
-      "height": 55,
+      "x": 1170.294117647059,
+      "y": 174.99999999999997,
+      "width": 5.018382352940989,
+      "height": 55.00000000000006,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2648,11 +2673,11 @@
       "index": "b16",
       "roundness": null,
       "seed": 316,
-      "version": 1,
-      "versionNonce": 316,
+      "version": 3,
+      "versionNonce": 1968496554,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634738910,
       "link": null,
       "locked": false,
       "points": [
@@ -2661,34 +2686,37 @@
           0
         ],
         [
-          15,
-          55
+          5.018382352940989,
+          55.00000000000006
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "inside",
         "elementId": "node-af",
         "fixedPoint": [
-          0.5,
-          1
+          0.5230179028133001,
+          0.9999999999999996
         ]
       },
       "endBinding": {
+        "mode": "inside",
         "elementId": "node-trino",
         "fixedPoint": [
-          0.5,
-          0
+          0.470703125,
+          5.684341886080802e-16
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-af-trino",
       "type": "text",
-      "x": 1175,
-      "y": 190,
+      "x": 1187.9697564733676,
+      "y": 191.94546347100513,
       "width": 110,
       "height": 18,
       "angle": 0,
@@ -2704,11 +2732,11 @@
       "index": "b17",
       "roundness": null,
       "seed": 317,
-      "version": 1,
-      "versionNonce": 317,
+      "version": 17,
+      "versionNonce": 82075318,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634747971,
       "link": null,
       "locked": false,
       "text": "orchestrate DBT",
@@ -2724,10 +2752,10 @@
     {
       "id": "arrow-trino-hive",
       "type": "arrow",
-      "x": 1180,
+      "x": 1190.2941176470588,
       "y": 280,
-      "width": 35,
-      "height": 60,
+      "width": 13.039215686274474,
+      "height": 59.99999999999994,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2741,11 +2769,11 @@
       "index": "b18",
       "roundness": null,
       "seed": 318,
-      "version": 1,
-      "versionNonce": 318,
+      "version": 2,
+      "versionNonce": 1203828451,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774374157538,
       "link": null,
       "locked": false,
       "points": [
@@ -2754,22 +2782,24 @@
           0
         ],
         [
-          35,
-          60
+          13.039215686274474,
+          59.99999999999994
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-trino",
         "fixedPoint": [
-          0.5,
-          1
+          0.5001,
+          0.5001
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-hive",
         "fixedPoint": [
-          0.5,
+          0.5001,
           0
         ]
       },
@@ -2800,7 +2830,7 @@
       "version": 1,
       "versionNonce": 319,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1,
       "link": null,
       "locked": false,
@@ -2817,10 +2847,10 @@
     {
       "id": "arrow-trino-s3",
       "type": "arrow",
-      "x": 1100,
-      "y": 260,
-      "width": 100,
-      "height": 320,
+      "x": 1166.711259754738,
+      "y": 280,
+      "width": 153.9301946659807,
+      "height": 300,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2834,11 +2864,11 @@
       "index": "b20",
       "roundness": null,
       "seed": 320,
-      "version": 1,
-      "versionNonce": 320,
+      "version": 30,
+      "versionNonce": 1269094947,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774374157539,
       "link": null,
       "locked": false,
       "points": [
@@ -2847,23 +2877,25 @@
           0
         ],
         [
-          -100,
-          320
+          -153.9301946659807,
+          300
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-trino",
         "fixedPoint": [
-          0,
-          0.6
+          0.5032077838173834,
+          0.5032077838173842
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-s3",
         "fixedPoint": [
-          0.5,
-          0
+          0.53586591682048,
+          0.4641340831795196
         ]
       },
       "startArrowhead": null,
@@ -2873,10 +2905,10 @@
     {
       "id": "label-trino-s3",
       "type": "text",
-      "x": 985,
-      "y": 420,
-      "width": 110,
-      "height": 18,
+      "x": 927.5306019977234,
+      "y": 432.8113305847945,
+      "width": 66.08333587646484,
+      "height": 32.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2890,30 +2922,30 @@
       "index": "b21",
       "roundness": null,
       "seed": 321,
-      "version": 1,
-      "versionNonce": 321,
+      "version": 50,
+      "versionNonce": 637398314,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635398138,
       "link": null,
       "locked": false,
-      "text": "read/write Delta",
+      "text": "read/write\nDelta",
       "fontSize": 13,
       "fontFamily": 1,
       "textAlign": "center",
       "verticalAlign": "top",
       "containerId": null,
-      "originalText": "read/write Delta",
+      "originalText": "read/write\nDelta",
       "autoResize": true,
       "lineHeight": 1.25
     },
     {
       "id": "arrow-hive-pghive",
       "type": "arrow",
-      "x": 1240,
-      "y": 400,
-      "width": 0,
-      "height": 180,
+      "x": 1240.033259952448,
+      "y": 406,
+      "width": 0.20590157020387778,
+      "height": 168,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2927,11 +2959,11 @@
       "index": "b22",
       "roundness": null,
       "seed": 322,
-      "version": 1,
-      "versionNonce": 322,
+      "version": 2,
+      "versionNonce": 671858474,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635515133,
       "link": null,
       "locked": false,
       "points": [
@@ -2940,34 +2972,37 @@
           0
         ],
         [
-          0,
-          180
+          0.20590157020387778,
+          168
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-hive",
         "fixedPoint": [
-          0.6,
-          1
+          0.6086831754055934,
+          0.6086831754055927
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-pghive",
         "fixedPoint": [
-          0.5,
-          0
+          0.5012594458438292,
+          0.49874055415617247
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-hive-pghive",
       "type": "text",
-      "x": 1250,
-      "y": 475,
+      "x": 1251.693895064808,
+      "y": 440.8971164880279,
       "width": 70,
       "height": 18,
       "angle": 0,
@@ -2983,11 +3018,11 @@
       "index": "b23",
       "roundness": null,
       "seed": 323,
-      "version": 1,
-      "versionNonce": 323,
+      "version": 53,
+      "versionNonce": 1872014378,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635520981,
       "link": null,
       "locked": false,
       "text": "metadata",
@@ -3003,10 +3038,10 @@
     {
       "id": "arrow-af-pgaf",
       "type": "arrow",
-      "x": 1280,
-      "y": 145,
-      "width": 0,
-      "height": 515,
+      "x": 1286,
+      "y": 144.9,
+      "width": 93.30487524152568,
+      "height": 540,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -3020,11 +3055,11 @@
       "index": "b24",
       "roundness": null,
       "seed": 324,
-      "version": 1,
-      "versionNonce": 324,
+      "version": 61,
+      "versionNonce": 866802922,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635589385,
       "link": null,
       "locked": false,
       "points": [
@@ -3033,38 +3068,59 @@
           0
         ],
         [
-          60,
-          260
+          93.30487524152568,
+          0
         ],
         [
-          60,
-          515
+          93.30487524152568,
+          540
+        ],
+        [
+          70,
+          540
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-af",
         "fixedPoint": [
-          1,
-          0.5
+          1.0260869565217392,
+          0.4983333333333334
         ]
       },
       "endBinding": {
         "elementId": "node-pgaf",
+        "mode": "orbit",
         "fixedPoint": [
-          0.7,
-          0
+          1.0272727272727273,
+          0.49799999999999955
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": true,
+      "fixedSegments": [
+        {
+          "index": 2,
+          "start": [
+            93.30487524152568,
+            0
+          ],
+          "end": [
+            93.30487524152568,
+            540
+          ]
+        }
+      ],
+      "startIsSpecial": false,
+      "endIsSpecial": false
     },
     {
       "id": "label-af-pgaf",
       "type": "text",
-      "x": 1345,
-      "y": 400,
+      "x": 1304.1452671088923,
+      "y": 121.79872364626544,
       "width": 70,
       "height": 18,
       "angle": 0,
@@ -3080,11 +3136,11 @@
       "index": "b25",
       "roundness": null,
       "seed": 325,
-      "version": 1,
-      "versionNonce": 325,
+      "version": 46,
+      "versionNonce": 1136929142,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634745438,
       "link": null,
       "locked": false,
       "text": "DAG state",
@@ -3100,10 +3156,10 @@
     {
       "id": "arrow-prom-sim",
       "type": "arrow",
-      "x": 230,
-      "y": 290,
-      "width": 300,
-      "height": 130,
+      "x": 262.7856729802478,
+      "y": 296,
+      "width": 366.9780633394015,
+      "height": 122.45409306340093,
       "angle": 0,
       "strokeColor": "#6a1b9a",
       "backgroundColor": "transparent",
@@ -3117,11 +3173,11 @@
       "index": "b26",
       "roundness": null,
       "seed": 326,
-      "version": 1,
-      "versionNonce": 326,
+      "version": 173,
+      "versionNonce": 1867078838,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555648,
       "link": null,
       "locked": false,
       "points": [
@@ -3130,37 +3186,40 @@
           0
         ],
         [
-          300,
-          130
+          366.9780633394015,
+          122.45409306340093
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-prom",
         "fixedPoint": [
-          0.75,
-          1
+          0.4710809595602241,
+          0.5289190404397754
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-sim",
         "fixedPoint": [
-          0.5,
-          0
+          0.49687566855689624,
+          0.49687566855689624
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-prom-sim",
       "type": "text",
-      "x": 400,
-      "y": 335,
-      "width": 100,
-      "height": 18,
-      "angle": 0,
+      "x": 300.60779027368403,
+      "y": 303.67202270529646,
+      "width": 99.11666870117188,
+      "height": 16.25,
+      "angle": 0.35826202891390224,
       "strokeColor": "#6a1b9a",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -3173,11 +3232,11 @@
       "index": "b27",
       "roundness": null,
       "seed": 327,
-      "version": 1,
-      "versionNonce": 327,
+      "version": 122,
+      "versionNonce": 618804970,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635485732,
       "link": null,
       "locked": false,
       "text": "scrape /metrics",
@@ -3193,10 +3252,10 @@
     {
       "id": "arrow-prom-sp",
       "type": "arrow",
-      "x": 130,
-      "y": 290,
-      "width": 100,
-      "height": 130,
+      "x": 203.53378921105087,
+      "y": 296,
+      "width": 89.9813527402548,
+      "height": 118.61006336118072,
       "angle": 0,
       "strokeColor": "#6a1b9a",
       "backgroundColor": "transparent",
@@ -3210,11 +3269,11 @@
       "index": "b28",
       "roundness": null,
       "seed": 328,
-      "version": 1,
-      "versionNonce": 328,
+      "version": 29,
+      "versionNonce": 1429784246,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774635555649,
       "link": null,
       "locked": false,
       "points": [
@@ -3223,34 +3282,37 @@
           0
         ],
         [
-          100,
-          130
+          89.9813527402548,
+          118.61006336118072
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-prom",
         "fixedPoint": [
-          0.25,
-          1
+          0.5001,
+          0.5001
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-sp",
         "fixedPoint": [
-          0.5,
-          0
+          0.5001,
+          0.5001
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-prom-sp",
       "type": "text",
-      "x": 100,
-      "y": 335,
+      "x": 85.08478005562728,
+      "y": 305.81804793492296,
       "width": 100,
       "height": 18,
       "angle": 0,
@@ -3266,11 +3328,11 @@
       "index": "b29",
       "roundness": null,
       "seed": 329,
-      "version": 1,
-      "versionNonce": 329,
+      "version": 57,
+      "versionNonce": 1836681014,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634932270,
       "link": null,
       "locked": false,
       "text": "scrape /metrics",
@@ -3286,10 +3348,10 @@
     {
       "id": "arrow-otel-prom",
       "type": "arrow",
-      "x": 210,
-      "y": 170,
-      "width": 30,
-      "height": 70,
+      "x": 171.492429042141,
+      "y": 176,
+      "width": 0.7836763851603337,
+      "height": 58,
       "angle": 0,
       "strokeColor": "#6a1b9a",
       "backgroundColor": "transparent",
@@ -3303,11 +3365,11 @@
       "index": "b30",
       "roundness": null,
       "seed": 330,
-      "version": 1,
-      "versionNonce": 330,
+      "version": 23,
+      "versionNonce": 88019126,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634870421,
       "link": null,
       "locked": false,
       "points": [
@@ -3316,36 +3378,39 @@
           0
         ],
         [
-          -30,
-          70
+          -0.7836763851603337,
+          58
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-otel",
         "fixedPoint": [
-          0.3,
-          1
+          0.3359731221502281,
+          0.6640268778497717
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-prom",
         "fixedPoint": [
-          0.5,
-          0
+          0.451612903225804,
+          0.451612903225805
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-otel-prom",
       "type": "text",
-      "x": 60,
-      "y": 195,
-      "width": 110,
-      "height": 18,
+      "x": 99.74549556224105,
+      "y": 187.21814611597947,
+      "width": 48.66666793823242,
+      "height": 32.5,
       "angle": 0,
       "strokeColor": "#6a1b9a",
       "backgroundColor": "transparent",
@@ -3359,87 +3424,31 @@
       "index": "b31",
       "roundness": null,
       "seed": 331,
-      "version": 1,
-      "versionNonce": 331,
+      "version": 58,
+      "versionNonce": 1070786346,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634888137,
       "link": null,
       "locked": false,
-      "text": "forward metrics",
+      "text": "forward\nmetrics",
       "fontSize": 13,
       "fontFamily": 1,
       "textAlign": "center",
       "verticalAlign": "top",
       "containerId": null,
-      "originalText": "forward metrics",
+      "originalText": "forward\nmetrics",
       "autoResize": true,
       "lineHeight": 1.25
     },
     {
-      "id": "arrow-otel-loki",
-      "type": "arrow",
-      "x": 300,
-      "y": 170,
-      "width": 125,
-      "height": 70,
-      "angle": 0,
-      "strokeColor": "#6a1b9a",
-      "backgroundColor": "transparent",
-      "fillStyle": "solid",
-      "strokeWidth": 2,
-      "strokeStyle": "dotted",
-      "roughness": 0,
-      "opacity": 100,
-      "groupIds": [],
-      "frameId": null,
-      "index": "b32",
-      "roundness": null,
-      "seed": 332,
-      "version": 1,
-      "versionNonce": 332,
-      "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
-      "link": null,
-      "locked": false,
-      "points": [
-        [
-          0,
-          0
-        ],
-        [
-          125,
-          70
-        ]
-      ],
-      "lastCommittedPoint": null,
-      "startBinding": {
-        "elementId": "node-otel",
-        "fixedPoint": [
-          0.75,
-          1
-        ]
-      },
-      "endBinding": {
-        "elementId": "node-loki",
-        "fixedPoint": [
-          0.5,
-          0
-        ]
-      },
-      "startArrowhead": null,
-      "endArrowhead": "arrow",
-      "elbowed": false
-    },
-    {
       "id": "label-otel-loki",
       "type": "text",
-      "x": 280,
-      "y": 195,
+      "x": 288.43034170768897,
+      "y": 190.46058523432137,
       "width": 90,
       "height": 18,
-      "angle": 0,
+      "angle": 0.5066804948190509,
       "strokeColor": "#6a1b9a",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -3452,11 +3461,11 @@
       "index": "b33",
       "roundness": null,
       "seed": 333,
-      "version": 1,
-      "versionNonce": 333,
+      "version": 113,
+      "versionNonce": 734772086,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634880197,
       "link": null,
       "locked": false,
       "text": "forward logs",
@@ -3470,12 +3479,71 @@
       "lineHeight": 1.25
     },
     {
+      "id": "arrow-otel-loki",
+      "type": "arrow",
+      "x": 265.5661898675667,
+      "y": 176,
+      "width": 132.00948268036052,
+      "height": 73.56370776804113,
+      "angle": 0,
+      "strokeColor": "#6a1b9a",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "dotted",
+      "roughness": 0,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "b33V",
+      "roundness": null,
+      "seed": 332,
+      "version": 282,
+      "versionNonce": 1741130230,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1774634870421,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          132.00948268036052,
+          73.56370776804113
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": {
+        "mode": "orbit",
+        "elementId": "node-otel",
+        "fixedPoint": [
+          0.5483433880698311,
+          0.5483433880698311
+        ]
+      },
+      "endBinding": {
+        "elementId": "node-loki",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.4642865751595923,
+          0.4945493402641182
+        ]
+      },
+      "startArrowhead": null,
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "moveMidPointsWithElement": false
+    },
+    {
       "id": "arrow-otel-tempo",
       "type": "arrow",
-      "x": 350,
-      "y": 155,
-      "width": 220,
-      "height": 85,
+      "x": 310.6058523432135,
+      "y": 151.58688558750532,
+      "width": 319.0141615019351,
+      "height": 120.66718645403876,
       "angle": 0,
       "strokeColor": "#6a1b9a",
       "backgroundColor": "transparent",
@@ -3489,11 +3557,11 @@
       "index": "b34",
       "roundness": null,
       "seed": 334,
-      "version": 1,
-      "versionNonce": 334,
+      "version": 59,
+      "versionNonce": 882404854,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634909327,
       "link": null,
       "locked": false,
       "points": [
@@ -3502,37 +3570,40 @@
           0
         ],
         [
-          220,
-          85
+          319.0141615019351,
+          120.66718645403876
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-otel",
         "fixedPoint": [
-          1,
-          0.7
+          0.7666737371595105,
+          0.23332626284049013
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-tempo",
         "fixedPoint": [
-          0,
-          0.5
+          0.44715447154469035,
+          0.5528455284553104
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-otel-tempo",
       "type": "text",
-      "x": 470,
-      "y": 155,
+      "x": 314.36292231958896,
+      "y": 144.62419482130593,
       "width": 100,
       "height": 18,
-      "angle": 0,
+      "angle": 0.3501230907199151,
       "strokeColor": "#6a1b9a",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -3545,11 +3616,11 @@
       "index": "b35",
       "roundness": null,
       "seed": 335,
-      "version": 1,
-      "versionNonce": 335,
+      "version": 122,
+      "versionNonce": 72502838,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634873472,
       "link": null,
       "locked": false,
       "text": "forward traces",
@@ -3565,10 +3636,10 @@
     {
       "id": "arrow-graf-prom",
       "type": "arrow",
-      "x": 520,
-      "y": 155,
-      "width": 240,
-      "height": 100,
+      "x": 514.000048710843,
+      "y": 157.50496356474912,
+      "width": 228.00009742168595,
+      "height": 94.99007287050296,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -3582,11 +3653,11 @@
       "index": "b36",
       "roundness": null,
       "seed": 336,
-      "version": 1,
-      "versionNonce": 336,
+      "version": 2,
+      "versionNonce": 230238826,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634817227,
       "link": null,
       "locked": false,
       "points": [
@@ -3595,37 +3666,40 @@
           0
         ],
         [
-          -240,
-          100
+          -228.00009742168595,
+          94.99007287050296
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-graf",
         "fixedPoint": [
-          0,
-          0.7
+          0.2896551724138496,
+          0.2896551724138493
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-prom",
         "fixedPoint": [
-          1,
-          0.3
+          0.7374999999999576,
+          0.737499999999958
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-graf-prom",
       "type": "text",
-      "x": 305,
-      "y": 205,
-      "width": 100,
-      "height": 18,
-      "angle": 0,
+      "x": 431.7367776356505,
+      "y": 152.53574318048416,
+      "width": 84.51667022705078,
+      "height": 16.25,
+      "angle": 5.900610213705854,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -3638,11 +3712,11 @@
       "index": "b37",
       "roundness": null,
       "seed": 337,
-      "version": 1,
-      "versionNonce": 337,
+      "version": 179,
+      "versionNonce": 82948842,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634862203,
       "link": null,
       "locked": false,
       "text": "query metrics",
@@ -3658,10 +3732,10 @@
     {
       "id": "arrow-graf-loki",
       "type": "arrow",
-      "x": 560,
-      "y": 170,
-      "width": 135,
-      "height": 70,
+      "x": 574.0818311973036,
+      "y": 175.99999999999997,
+      "width": 79.77837988356833,
+      "height": 73.5637077680411,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -3675,11 +3749,11 @@
       "index": "b38",
       "roundness": null,
       "seed": 338,
-      "version": 1,
-      "versionNonce": 338,
+      "version": 170,
+      "versionNonce": 299545462,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634814254,
       "link": null,
       "locked": false,
       "points": [
@@ -3688,37 +3762,40 @@
           0
         ],
         [
-          -135,
-          70
+          -79.77837988356833,
+          73.5637077680411
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-graf",
         "fixedPoint": [
-          0.23,
-          1
+          0.5120447202970521,
+          0.5120447202970524
         ]
       },
       "endBinding": {
         "elementId": "node-loki",
+        "mode": "orbit",
         "fixedPoint": [
-          0.5,
-          0
+          0.5223734557883658,
+          0.4862730485272129
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-graf-loki",
       "type": "text",
-      "x": 450,
-      "y": 200,
+      "x": 486.31531812542914,
+      "y": 188.97570699763756,
       "width": 80,
       "height": 18,
-      "angle": 0,
+      "angle": 5.574734415001659,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -3731,11 +3808,11 @@
       "index": "b39",
       "roundness": null,
       "seed": 339,
-      "version": 1,
-      "versionNonce": 339,
+      "version": 109,
+      "versionNonce": 1152792042,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634899420,
       "link": null,
       "locked": false,
       "text": "query logs",
@@ -3751,10 +3828,10 @@
     {
       "id": "arrow-graf-tempo",
       "type": "arrow",
-      "x": 640,
-      "y": 170,
-      "width": 10,
-      "height": 70,
+      "x": 649.4963108351247,
+      "y": 175.99999999999997,
+      "width": 49.51904733674064,
+      "height": 90.42439118341898,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -3768,11 +3845,11 @@
       "index": "b40",
       "roundness": null,
       "seed": 340,
-      "version": 1,
-      "versionNonce": 340,
+      "version": 38,
+      "versionNonce": 914571062,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634909327,
       "link": null,
       "locked": false,
       "points": [
@@ -3781,37 +3858,40 @@
           0
         ],
         [
-          10,
-          70
+          49.51904733674064,
+          90.42439118341898
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "orbit",
         "elementId": "node-graf",
         "fixedPoint": [
-          0.7,
-          1
+          0.6929609095375112,
+          0.6929609095375117
         ]
       },
       "endBinding": {
+        "mode": "orbit",
         "elementId": "node-tempo",
         "fixedPoint": [
-          0.5,
-          0
+          0.5234042553191471,
+          0.47659574468085336
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-graf-tempo",
       "type": "text",
-      "x": 650,
-      "y": 195,
+      "x": 653.242439118342,
+      "y": 206.67278082603082,
       "width": 90,
       "height": 18,
-      "angle": 0,
+      "angle": 1.04265400210571,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -3824,11 +3904,11 @@
       "index": "b41",
       "roundness": null,
       "seed": 341,
-      "version": 1,
-      "versionNonce": 341,
+      "version": 49,
+      "versionNonce": 847784246,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634913270,
       "link": null,
       "locked": false,
       "text": "query traces",
@@ -3844,10 +3924,10 @@
     {
       "id": "arrow-graf-trino",
       "type": "arrow",
-      "x": 690,
-      "y": 145,
-      "width": 410,
-      "height": 110,
+      "x": 688.9649480810109,
+      "y": 163.65887579467713,
+      "width": 411.76023691172156,
+      "height": 73.54474381714127,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -3861,11 +3941,11 @@
       "index": "b42",
       "roundness": null,
       "seed": 342,
-      "version": 1,
-      "versionNonce": 342,
+      "version": 3,
+      "versionNonce": 314330410,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634817228,
       "link": null,
       "locked": false,
       "points": [
@@ -3874,37 +3954,40 @@
           0
         ],
         [
-          410,
-          110
+          411.76023691172156,
+          73.54474381714127
         ]
       ],
       "lastCommittedPoint": null,
       "startBinding": {
+        "mode": "inside",
         "elementId": "node-graf",
         "fixedPoint": [
-          1,
-          0.5
+          0.9939114593000641,
+          0.8731775158935426
         ]
       },
       "endBinding": {
+        "mode": "inside",
         "elementId": "node-trino",
         "fixedPoint": [
-          0,
-          0.5
+          0.00453240620457791,
+          0.14407239223636792
         ]
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "label-graf-trino",
       "type": "text",
-      "x": 850,
-      "y": 175,
+      "x": 711.8720935586352,
+      "y": 152.95141399527512,
       "width": 110,
       "height": 18,
-      "angle": 0,
+      "angle": 0.19635163406306155,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -3917,11 +4000,11 @@
       "index": "b43",
       "roundness": null,
       "seed": 343,
-      "version": 1,
-      "versionNonce": 343,
+      "version": 112,
+      "versionNonce": 1720907126,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1774634920513,
       "link": null,
       "locked": false,
       "text": "query analytics",
@@ -3939,7 +4022,8 @@
     "gridSize": 20,
     "gridStep": 5,
     "gridModeEnabled": false,
-    "viewBackgroundColor": "#ffffff"
+    "viewBackgroundColor": "#ffffff",
+    "lockedMultiSelections": {}
   },
   "files": {}
 }
