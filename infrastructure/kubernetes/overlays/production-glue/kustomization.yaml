@@ -53,7 +53,7 @@ patches:
       name: trino
 
   # Airflow: inject GLUE_ROLE_ARN for dbt-glue profile
-  # Replace <glue-role-arn> with Terraform output during deploy:
+  # Replace arn:aws:iam::962393283188:role/rideshare-glue-job with Terraform output during deploy:
   #   terraform -chdir=infrastructure/terraform/foundation output -raw glue_job_role_arn
   - patch: |-
       apiVersion: apps/v1
@@ -69,9 +69,9 @@ patches:
                   - name: DBT_RUNNER
                     value: "glue"
                   - name: GLUE_ROLE_ARN
-                    value: "<glue-role-arn>"
+                    value: "arn:aws:iam::962393283188:role/rideshare-glue-job"
                   - name: GLUE_DATA_LOCATION
-                    value: "s3://rideshare-<account-id>-silver"
+                    value: "s3://rideshare-962393283188-silver"
     target:
       kind: Deployment
       name: airflow-scheduler
@@ -90,9 +90,9 @@ patches:
                   - name: DBT_RUNNER
                     value: "glue"
                   - name: GLUE_ROLE_ARN
-                    value: "<glue-role-arn>"
+                    value: "arn:aws:iam::962393283188:role/rideshare-glue-job"
                   - name: GLUE_DATA_LOCATION
-                    value: "s3://rideshare-<account-id>-silver"
+                    value: "s3://rideshare-962393283188-silver"
     target:
       kind: Deployment
       name: airflow-webserver

@@ -18,7 +18,7 @@ spec:
     # Both overlays pull shared AWS config from components/aws-production/.
     #   DBT_RUNNER=duckdb: infrastructure/kubernetes/overlays/production-duckdb
     #   DBT_RUNNER=glue:   infrastructure/kubernetes/overlays/production-glue
-    path: infrastructure/kubernetes/overlays/production-<dbt-runner>
+    path: infrastructure/kubernetes/overlays/production-duckdb
 
   destination:
     server: https://kubernetes.default.svc
