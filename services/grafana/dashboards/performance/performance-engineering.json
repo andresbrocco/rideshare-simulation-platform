@@ -1167,18 +1167,9 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rideshare:performance:simpy_queue_headroom",
-          "legendFormat": "SimPy Event Queue Headroom",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
           "expr": "rideshare:performance:cpu_headroom",
           "legendFormat": "CPU Headroom (% of host cores)",
-          "refId": "C"
+          "refId": "B"
         },
         {
           "datasource": {
@@ -1187,7 +1178,7 @@
           },
           "expr": "rideshare:performance:memory_headroom",
           "legendFormat": "Memory Headroom",
-          "refId": "D"
+          "refId": "C"
         },
         {
           "datasource": {
@@ -1196,7 +1187,7 @@
           },
           "expr": "rideshare:performance:consumption_ratio",
           "legendFormat": "Stream Processor / Simulation Throughput Ratio",
-          "refId": "E"
+          "refId": "D"
         },
         {
           "datasource": {
@@ -1205,7 +1196,7 @@
           },
           "expr": "rideshare:performance:rtr_headroom",
           "legendFormat": "Real-Time Ratio (sim speed vs wall clock)",
-          "refId": "F"
+          "refId": "E"
         }
       ],
       "title": "Component Breakdown",

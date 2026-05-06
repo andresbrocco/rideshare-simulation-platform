@@ -555,6 +555,20 @@ jobs:
             argocd.argoproj.io/refresh=hard --overwrite
           echo "ArgoCD hard refresh triggered"
 
+      - name: Write data-state to SSM
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            DATA_STATUS="clean"
+          else
+            DATA_STATUS="error"
+          fi
+          aws ssm put-parameter \
+            --name "/rideshare/data-state" \
+            --value "{\"status\":\"$DATA_STATUS\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
+            --type "String" --overwrite \
+            || echo "Warning: Failed to write data-state"
+
       # ── Phase 14: Summary ────────────────────────────────────────────
 
       - name: Reset Summary

@@ -400,3 +400,12 @@ jobs:
           # Fallback: direct SSM delete in case Lambda is unreachable (infra destroyed)
           aws ssm delete-parameter --name "/rideshare/session/deadline" 2>&1 \
             || echo "Note: session parameter may already be deleted"
+
+      - name: Write data-state to SSM
+        if: always()
+        run: |
+          aws ssm put-parameter \
+            --name "/rideshare/data-state" \
+            --value "{\"status\":\"populated\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
+            --type "String" --overwrite \
+            || echo "Warning: Failed to write data-state"

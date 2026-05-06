@@ -87,6 +87,89 @@
   cursor: not-allowed;
 }
 
+/* ── Data state indicator ────────────────────────── */
+
+.dataStateRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.dataStateLabel {
+  font-size: 0.75rem;
+  color: var(--offline-text-muted);
+}
+
+.dataStateBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.dataState_populated {
+  color: var(--accent-orange);
+  background: rgba(var(--accent-orange-rgb), 0.1);
+}
+
+.dataState_clean {
+  color: var(--brand-green);
+  background: rgba(var(--brand-green-rgb), 0.1);
+}
+
+.dataState_resetting {
+  color: var(--accent-orange);
+  background: rgba(var(--accent-orange-rgb), 0.1);
+}
+
+.dataState_error {
+  color: #ff4d4d;
+  background: rgba(255, 77, 77, 0.1);
+}
+
+.dataState_unknown {
+  color: var(--offline-text-dimmest);
+  background: rgba(var(--offline-neon-rgb), 0.05);
+}
+
+.dataStateSpinner {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid rgba(var(--accent-orange-rgb), 0.3);
+  border-top-color: var(--accent-orange);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.resetButton {
+  width: 100%;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid rgba(255, 77, 77, 0.3);
+  border-radius: 6px;
+  color: #ff4d4d;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 10px;
+}
+
+.resetButton:hover:not(:disabled) {
+  border-color: #ff4d4d;
+  background: rgba(255, 77, 77, 0.05);
+}
+
+.resetButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* ── Deploying state ───────────────────────────────── */
 
 .deployingHeader {

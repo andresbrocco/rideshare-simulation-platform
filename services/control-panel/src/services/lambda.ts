@@ -434,3 +434,44 @@ export async function getServiceHealth(): Promise<ServiceHealthMap> {
     control_panel: sim,
   };
 }
+
+export type DataStatus = 'unknown' | 'populated' | 'resetting' | 'clean' | 'error';
+
+export interface DataStateResponse {
+  status: DataStatus;
+  updated_at?: string;
+}
+
+function isDataStateResponse(data: unknown): data is DataStateResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as DataStateResponse).status === 'string'
+  );
+}
+
+export async function getDataState(): Promise<DataStateResponse> {
+  return callLambda({ action: 'data-state' }, isDataStateResponse, 'Data state service');
+}
+
+export interface ResetDataResponse {
+  triggered: boolean;
+  status: string;
+  error?: string;
+}
+
+function isResetDataResponse(data: unknown): data is ResetDataResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as ResetDataResponse).triggered === 'boolean'
+  );
+}
+
+export async function resetData(apiKey: string): Promise<ResetDataResponse> {
+  return callLambda(
+    { action: 'reset-data', api_key: apiKey },
+    isResetDataResponse,
+    'Data reset service'
+  );
+}

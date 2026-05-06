@@ -45,9 +45,6 @@ groups:
       - record: rideshare:performance:kafka_lag_headroom
         expr: clamp(1 - (sum(kafka_consumergroup_lag) or vector(0)) / 18758, 0, 1)
 
-      - record: rideshare:performance:simpy_queue_headroom
-        expr: clamp(1 - (max(simulation_simpy_events) or vector(0)) / 24096, 0, 1)
-
       - record: rideshare:performance:cpu_headroom
         expr: >-
           clamp(
@@ -85,9 +82,6 @@ groups:
       - record: rideshare:performance:kafka_lag_headroom:smooth
         expr: avg_over_time(rideshare:performance:kafka_lag_headroom[16s])
 
-      - record: rideshare:performance:simpy_queue_headroom:smooth
-        expr: avg_over_time(rideshare:performance:simpy_queue_headroom[16s])
-
       - record: rideshare:performance:cpu_headroom:smooth
         expr: avg_over_time(rideshare:performance:cpu_headroom[16s])
 
@@ -105,7 +99,6 @@ groups:
         expr: >-
           min by() (
             label_replace(rideshare:performance:kafka_lag_headroom:smooth, "component", "kafka_lag", "", "")
-            or label_replace(rideshare:performance:simpy_queue_headroom:smooth, "component", "simpy_queue", "", "")
             or label_replace(rideshare:performance:cpu_headroom:smooth, "component", "cpu", "", "")
             or label_replace(rideshare:performance:memory_headroom:smooth, "component", "memory", "", "")
             or label_replace(rideshare:performance:consumption_ratio:smooth, "component", "consumption", "", "")

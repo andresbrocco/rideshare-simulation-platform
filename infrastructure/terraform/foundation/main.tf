@@ -187,7 +187,8 @@ module "lambda_auth_deploy" {
   writable_secrets_arns = []
 
   ssm_parameter_arns = [
-    "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/rideshare/session/*"
+    "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/rideshare/session/*",
+    "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/rideshare/data-state"
   ]
 
   scheduler_config = {

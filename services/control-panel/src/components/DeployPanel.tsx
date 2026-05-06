@@ -9,10 +9,14 @@ import {
   activateSession,
   extendSession,
   shrinkSession,
+  getDataState,
+  resetData,
   LambdaServiceError,
   ALL_SERVICES_DOWN,
 } from '../services/lambda';
-import type { StatusResponse, ServiceHealthMap } from '../services/lambda';
+import type { StatusResponse, ServiceHealthMap, DataStateResponse } from '../services/lambda';
+import { useRole } from '../hooks/useRole';
+import ConfirmModal from './ConfirmModal';
 import {
   useDeployNotification,
   playSuccessChime,
@@ -124,6 +128,12 @@ export default function DeployPanel({
   const [launching, setLaunching] = useState(false);
   const [deployProgress, setDeployProgress] = useState<Record<string, boolean>>({});
   const [dbtRunner, setDbtRunner] = useState<'duckdb' | 'glue'>('duckdb');
+
+  // Data state
+  const role = useRole();
+  const [dataState, setDataState] = useState<DataStateResponse | null>(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   // Timer state
   const [deployedAt, setDeployedAt] = useState<number | null>(null);
@@ -750,6 +760,55 @@ export default function DeployPanel({
     setDeployProgress({});
   };
 
+  // ── Data state polling ─────────────────────────────────────────
+  useEffect(() => {
+    if (panelState !== 'idle') return;
+
+    let cancelled = false;
+    const fetchDataState = async () => {
+      try {
+        const state = await getDataState();
+        if (!cancelled) setDataState(state);
+      } catch {
+        // Non-fatal — indicator stays hidden
+      }
+    };
+
+    fetchDataState();
+
+    // Poll when resetting
+    if (dataState?.status === 'resetting') {
+      const interval = setInterval(fetchDataState, 10_000);
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+      };
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [panelState, dataState?.status]);
+
+  const handleReset = useCallback(async () => {
+    setShowResetModal(false);
+    if (!apiKey) {
+      onNeedAuth();
+      return;
+    }
+    setResetting(true);
+    try {
+      await resetData(apiKey);
+      setDataState({ status: 'resetting' });
+      showToast.success('Data reset triggered — this takes a few minutes');
+    } catch (err) {
+      const message = err instanceof LambdaServiceError ? err.message : 'Failed to reset data';
+      showToast.error(message);
+    } finally {
+      setResetting(false);
+    }
+  }, [apiKey, onNeedAuth]);
+
   // ── Derived values ─────────────────────────────────────────────
   const workflowStepIndex = WORKFLOW_STEPS.findIndex((s) => s.activeKey === workflowStatus);
   const workflowRunning = workflowStatus === 'in_progress' || workflowStatus === 'completed';
@@ -797,6 +856,31 @@ export default function DeployPanel({
               <option value="glue">AWS Glue</option>
             </select>
           </div>
+          {dataState && (
+            <div className={styles.dataStateRow}>
+              <span className={styles.dataStateLabel}>Lakehouse data:</span>
+              <span
+                className={`${styles.dataStateBadge} ${
+                  dataState.status === 'populated'
+                    ? styles.dataState_populated
+                    : dataState.status === 'clean'
+                      ? styles.dataState_clean
+                      : dataState.status === 'resetting'
+                        ? styles.dataState_resetting
+                        : dataState.status === 'error'
+                          ? styles.dataState_error
+                          : styles.dataState_unknown
+                }`}
+              >
+                {dataState.status === 'resetting' && <span className={styles.dataStateSpinner} />}
+                {dataState.status === 'populated' && 'Populated'}
+                {dataState.status === 'clean' && 'Clean'}
+                {dataState.status === 'resetting' && 'Resetting...'}
+                {dataState.status === 'error' && 'Reset error'}
+                {dataState.status === 'unknown' && 'Unknown'}
+              </span>
+            </div>
+          )}
           <button className={styles.deployButton} onClick={handleDeploy} disabled={launching}>
             {launching ? 'Triggering...' : 'Deploy Platform'}
           </button>
@@ -804,6 +888,25 @@ export default function DeployPanel({
             <span className={styles.warning}>~$0.31/hour</span>
             <span className={styles.warning}>~20 min deploy time</span>
           </div>
+          {role === 'admin' && dataState && dataState.status !== 'resetting' && (
+            <button
+              className={styles.resetButton}
+              onClick={() => setShowResetModal(true)}
+              disabled={resetting}
+            >
+              {resetting ? 'Resetting...' : 'Reset Lakehouse Data'}
+            </button>
+          )}
+          <ConfirmModal
+            isOpen={showResetModal}
+            title="Reset Lakehouse Data"
+            message="This will wipe all Bronze, Silver, and Gold tables from S3. The reset takes a few minutes. Are you sure?"
+            confirmText="Reset Data"
+            cancelText="Cancel"
+            variant="danger"
+            onConfirm={handleReset}
+            onCancel={() => setShowResetModal(false)}
+          />
         </>
       )}
 

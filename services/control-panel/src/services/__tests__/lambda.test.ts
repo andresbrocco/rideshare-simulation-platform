@@ -10,6 +10,8 @@ import {
   shrinkSession,
   provisionVisitor,
   visitorLogin,
+  getDataState,
+  resetData,
   LambdaServiceError,
 } from '../lambda';
 
@@ -701,6 +703,114 @@ describe('Lambda Service', () => {
         expect(error).toBeInstanceOf(LambdaServiceError);
         expect((error as LambdaServiceError).code).toBe('NETWORK_ERROR');
         expect((error as LambdaServiceError).message).toBe('Authentication service unavailable');
+      }
+    });
+  });
+
+  describe('getDataState', () => {
+    it('returns data state on success', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ status: 'populated', updated_at: '2026-01-01T00:00:00Z' }),
+      });
+
+      const result = await getDataState();
+
+      expect(result).toEqual({ status: 'populated', updated_at: '2026-01-01T00:00:00Z' });
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://lambda.example.com',
+        expect.objectContaining({
+          body: JSON.stringify({ action: 'data-state' }),
+        })
+      );
+    });
+
+    it('does not send api_key in payload', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ status: 'unknown' }),
+      });
+
+      await getDataState();
+
+      const callBody = JSON.parse((global.fetch as Mock).mock.calls[0][1].body as string);
+      expect(callBody).not.toHaveProperty('api_key');
+    });
+
+    it('throws NETWORK_ERROR for fetch failures', async () => {
+      (global.fetch as Mock).mockRejectedValueOnce(new Error('Network error'));
+
+      try {
+        await getDataState();
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('NETWORK_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Data state service unavailable');
+      }
+    });
+
+    it('throws INVALID_RESPONSE for malformed response', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ invalid: 'structure' }),
+      });
+
+      try {
+        await getDataState();
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('INVALID_RESPONSE');
+      }
+    });
+  });
+
+  describe('resetData', () => {
+    it('returns triggered response on success', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ triggered: true, status: 'resetting' }),
+      });
+
+      const result = await resetData('admin-key');
+
+      expect(result).toEqual({ triggered: true, status: 'resetting' });
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://lambda.example.com',
+        expect.objectContaining({
+          body: JSON.stringify({ action: 'reset-data', api_key: 'admin-key' }),
+        })
+      );
+    });
+
+    it('throws LAMBDA_ERROR for non-200 responses with server message', async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => ({ error: 'Failed to trigger data reset' }),
+      });
+
+      try {
+        await resetData('admin-key');
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('LAMBDA_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Failed to trigger data reset');
+      }
+    });
+
+    it('throws NETWORK_ERROR for fetch failures', async () => {
+      (global.fetch as Mock).mockRejectedValueOnce(new Error('Network error'));
+
+      try {
+        await resetData('admin-key');
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LambdaServiceError);
+        expect((error as LambdaServiceError).code).toBe('NETWORK_ERROR');
+        expect((error as LambdaServiceError).message).toBe('Data reset service unavailable');
       }
     });
   });

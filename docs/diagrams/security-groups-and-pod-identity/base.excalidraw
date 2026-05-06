@@ -1,12 +1,12 @@
 {
   "type": "excalidraw",
   "version": 2,
-  "source": "diagrams",
+  "source": "https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor",
   "elements": [
     {
       "id": "inet-ellipse",
       "type": "ellipse",
-      "x": 50,
+      "x": 60,
       "y": 95,
       "width": 130,
       "height": 130,
@@ -23,24 +23,30 @@
       "index": "a0",
       "roundness": null,
       "seed": 1001,
-      "version": 1,
-      "versionNonce": 1001,
+      "version": 7,
+      "versionNonce": 812738336,
       "isDeleted": false,
       "boundElements": [
-        { "id": "inet-text", "type": "text" },
-        { "id": "arrow-inet-alb", "type": "arrow" }
+        {
+          "id": "inet-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-inet-alb",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1775088996490,
       "link": null,
       "locked": false
     },
     {
       "id": "inet-text",
       "type": "text",
-      "x": 65,
-      "y": 135,
-      "width": 100,
-      "height": 50,
+      "x": 86.94208906906582,
+      "y": 140.0380592228744,
+      "width": 76.19194030761719,
+      "height": 40,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -54,11 +60,11 @@
       "index": "a1",
       "roundness": null,
       "seed": 1002,
-      "version": 1,
-      "versionNonce": 1002,
+      "version": 4,
+      "versionNonce": 981100320,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1775088992519,
       "link": null,
       "locked": false,
       "text": "Internet\n0.0.0.0/0",
@@ -89,27 +95,38 @@
       "groupIds": [],
       "frameId": null,
       "index": "a2",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1003,
-      "version": 1,
-      "versionNonce": 1003,
+      "version": 58,
+      "versionNonce": 5906208,
       "isDeleted": false,
       "boundElements": [
-        { "id": "alb-text", "type": "text" },
-        { "id": "arrow-inet-alb", "type": "arrow" },
-        { "id": "arrow-alb-eks", "type": "arrow" }
+        {
+          "id": "alb-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-inet-alb",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-alb-eks",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1775088996490,
       "link": null,
       "locked": false
     },
     {
       "id": "alb-text",
       "type": "text",
-      "x": 355,
-      "y": 110,
-      "width": 250,
-      "height": 100,
+      "x": 402.20804595947266,
+      "y": 120,
+      "width": 155.5839080810547,
+      "height": 80,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -123,11 +140,11 @@
       "index": "a3",
       "roundness": null,
       "seed": 1004,
-      "version": 1,
-      "versionNonce": 1004,
+      "version": 18,
+      "versionNonce": 1829514976,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1775088996490,
       "link": null,
       "locked": false,
       "text": "ALB Security Group\nIN: TCP 443, 80\nfrom anywhere\nOUT: all",
@@ -158,26 +175,37 @@
       "groupIds": [],
       "frameId": null,
       "index": "a4",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1005,
-      "version": 1,
-      "versionNonce": 1005,
+      "version": 5,
+      "versionNonce": 1630724832,
       "isDeleted": false,
       "boundElements": [
-        { "id": "eks-text", "type": "text" },
-        { "id": "arrow-alb-eks", "type": "arrow" },
-        { "id": "arrow-eks-rds", "type": "arrow" }
+        {
+          "id": "eks-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-eks-rds",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-alb-eks",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1775088996490,
       "link": null,
       "locked": false
     },
     {
       "id": "eks-text",
       "type": "text",
-      "x": 805,
+      "x": 873.3120574951172,
       "y": 90,
-      "width": 270,
+      "width": 133.37588500976562,
       "height": 140,
       "angle": 0,
       "strokeColor": "#1e1e1e",
@@ -192,11 +220,11 @@
       "index": "a5",
       "roundness": null,
       "seed": 1006,
-      "version": 1,
-      "versionNonce": 1006,
+      "version": 2,
+      "versionNonce": 431778528,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1775088890556,
       "link": null,
       "locked": false,
       "text": "EKS Nodes\nSecurity Group\nIN: all TCP from\n10.0.0.0/16\nIN: all protocols\nfrom self\nOUT: all",
@@ -227,27 +255,38 @@
       "groupIds": [],
       "frameId": null,
       "index": "a6",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1007,
-      "version": 1,
-      "versionNonce": 1007,
+      "version": 5,
+      "versionNonce": 1892695840,
       "isDeleted": false,
       "boundElements": [
-        { "id": "rds-text", "type": "text" },
-        { "id": "arrow-eks-rds", "type": "arrow" },
-        { "id": "arrow-lambda-rds", "type": "arrow" }
+        {
+          "id": "rds-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-eks-rds",
+          "type": "arrow"
+        },
+        {
+          "id": "arrow-lambda-rds",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1775088936903,
       "link": null,
       "locked": false
     },
     {
       "id": "rds-text",
       "type": "text",
-      "x": 1305,
-      "y": 80,
-      "width": 270,
-      "height": 160,
+      "x": 1361.5360412597656,
+      "y": 100,
+      "width": 156.92791748046875,
+      "height": 120,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -261,11 +300,11 @@
       "index": "a7",
       "roundness": null,
       "seed": 1008,
-      "version": 1,
-      "versionNonce": 1008,
+      "version": 3,
+      "versionNonce": 348874464,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1775088891939,
       "link": null,
       "locked": false,
       "text": "RDS Security Group\nIN: TCP 5432\nfrom EKS Nodes SG\nIN: TCP 5432\nfrom 10.0.0.0/16\nOUT: all",
@@ -281,8 +320,8 @@
     {
       "id": "lambda-rect",
       "type": "rectangle",
-      "x": 790,
-      "y": 370,
+      "x": 790.000000021187,
+      "y": 299.9262547217223,
       "width": 300,
       "height": 160,
       "angle": 0,
@@ -296,26 +335,34 @@
       "groupIds": [],
       "frameId": null,
       "index": "a8",
-      "roundness": { "type": 3 },
+      "roundness": {
+        "type": 3
+      },
       "seed": 1009,
-      "version": 1,
-      "versionNonce": 1009,
+      "version": 89,
+      "versionNonce": 1661312736,
       "isDeleted": false,
       "boundElements": [
-        { "id": "lambda-text", "type": "text" },
-        { "id": "arrow-lambda-rds", "type": "arrow" }
+        {
+          "id": "lambda-text",
+          "type": "text"
+        },
+        {
+          "id": "arrow-lambda-rds",
+          "type": "arrow"
+        }
       ],
-      "updated": 1,
+      "updated": 1775088936903,
       "link": null,
       "locked": false
     },
     {
       "id": "lambda-text",
       "type": "text",
-      "x": 805,
-      "y": 395,
-      "width": 270,
-      "height": 110,
+      "x": 848.920051595894,
+      "y": 339.9262547217223,
+      "width": 182.15989685058594,
+      "height": 80,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -329,11 +376,11 @@
       "index": "a9",
       "roundness": null,
       "seed": 1010,
-      "version": 1,
-      "versionNonce": 1010,
+      "version": 87,
+      "versionNonce": 1356414688,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1775088903058,
       "link": null,
       "locked": false,
       "text": "Lambda Security Group\nIN: none\nOUT: TCP 5432\nto RDS SG only",
@@ -349,9 +396,9 @@
     {
       "id": "arrow-inet-alb",
       "type": "arrow",
-      "x": 180,
+      "x": 190,
       "y": 160,
-      "width": 160,
+      "width": 150,
       "height": 0,
       "angle": 0,
       "strokeColor": "#424242",
@@ -366,22 +413,39 @@
       "index": "b0",
       "roundness": null,
       "seed": 2001,
-      "version": 1,
-      "versionNonce": 2001,
+      "version": 56,
+      "versionNonce": 125097760,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1775088996491,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [160, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          0
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "inet-ellipse",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          1,
+          0.5
+        ],
+        "focus": 0
       },
       "endBinding": {
         "elementId": "alb-rect",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          0,
+          0.5
+        ],
+        "focus": 0
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -410,7 +474,7 @@
       "version": 1,
       "versionNonce": 2002,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1,
       "link": null,
       "locked": false,
@@ -444,22 +508,39 @@
       "index": "b2",
       "roundness": null,
       "seed": 2003,
-      "version": 1,
-      "versionNonce": 2003,
+      "version": 54,
+      "versionNonce": 1825001184,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1775088996492,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [170, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          170,
+          0
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "alb-rect",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          1,
+          0.5
+        ],
+        "focus": 0
       },
       "endBinding": {
         "elementId": "eks-rect",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          0,
+          0.5
+        ],
+        "focus": 0
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -488,7 +569,7 @@
       "version": 1,
       "versionNonce": 2004,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1,
       "link": null,
       "locked": false,
@@ -522,22 +603,39 @@
       "index": "b4",
       "roundness": null,
       "seed": 2005,
-      "version": 1,
-      "versionNonce": 2005,
+      "version": 5,
+      "versionNonce": 2017438432,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1775088996492,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [200, 0]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          200,
+          0
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "eks-rect",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          1,
+          0.5
+        ],
+        "focus": 0
       },
       "endBinding": {
         "elementId": "rds-rect",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          0,
+          0.5
+        ],
+        "focus": 0
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -566,7 +664,7 @@
       "version": 1,
       "versionNonce": 2006,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1,
       "link": null,
       "locked": false,
@@ -583,10 +681,10 @@
     {
       "id": "arrow-lambda-rds",
       "type": "arrow",
-      "x": 1090,
-      "y": 450,
-      "width": 200,
-      "height": 290,
+      "x": 1095.0000000211871,
+      "y": 379.82625472172225,
+      "width": 189.99999997881287,
+      "height": 219.92625472172224,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -600,36 +698,77 @@
       "index": "b6",
       "roundness": null,
       "seed": 2007,
-      "version": 1,
-      "versionNonce": 2007,
+      "version": 258,
+      "versionNonce": 2121339616,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1775088942004,
       "link": null,
       "locked": false,
-      "points": [[0, 0], [100, 0], [100, -290], [200, -290]],
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          60.86509789927641,
+          0
+        ],
+        [
+          60.86509789927641,
+          -219.92625472172224
+        ],
+        [
+          189.99999997881287,
+          -219.92625472172224
+        ]
+      ],
       "lastCommittedPoint": null,
       "startBinding": {
         "elementId": "lambda-rect",
-        "fixedPoint": [1, 0.5]
+        "fixedPoint": [
+          1,
+          0.5001
+        ],
+        "focus": 0
       },
       "endBinding": {
         "elementId": "rds-rect",
-        "fixedPoint": [0, 0.5]
+        "fixedPoint": [
+          -0.016666666666666666,
+          0.49952380952380954
+        ],
+        "focus": 0,
+        "gap": 0
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": true
+      "elbowed": true,
+      "fixedSegments": [
+        {
+          "index": 2,
+          "start": [
+            60.86509789927641,
+            0
+          ],
+          "end": [
+            60.86509789927641,
+            -219.92625472172224
+          ]
+        }
+      ],
+      "startIsSpecial": false,
+      "endIsSpecial": false
     },
     {
-      "id": "label-lambda-rds",
+      "id": "KsLo3qlEl-HApxjR-5obp",
       "type": "text",
-      "x": 1128,
-      "y": 290,
-      "width": 133,
-      "height": 18,
+      "x": 596.9873063482646,
+      "y": -3.2800198859497414,
+      "width": 394.3197937011719,
+      "height": 30,
       "angle": 0,
-      "strokeColor": "#424242",
+      "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
       "strokeWidth": 1,
@@ -638,23 +777,23 @@
       "opacity": 100,
       "groupIds": [],
       "frameId": null,
-      "index": "b7",
+      "index": "d2",
       "roundness": null,
-      "seed": 2008,
-      "version": 1,
-      "versionNonce": 2008,
+      "seed": 1333251872,
+      "version": 87,
+      "versionNonce": 626248416,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
+      "boundElements": [],
+      "updated": 1775088977197,
       "link": null,
       "locked": false,
-      "text": "PostgreSQL :5432",
-      "fontSize": 14,
+      "text": "Security groups and Pod Identity",
+      "fontSize": 24,
       "fontFamily": 1,
       "textAlign": "center",
       "verticalAlign": "top",
       "containerId": null,
-      "originalText": "PostgreSQL :5432",
+      "originalText": "Security groups and Pod Identity",
       "autoResize": true,
       "lineHeight": 1.25
     }

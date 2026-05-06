@@ -686,3 +686,12 @@ jobs:
           echo "Estimated cost: ~$0.31/hour while running"
           echo "Remember to run teardown workflow when demo is complete"
           echo "================================"
+
+      - name: Write data-state to SSM
+        if: success()
+        run: |
+          aws ssm put-parameter \
+            --name "/rideshare/data-state" \
+            --value "{\"status\":\"populated\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
+            --type "String" --overwrite \
+            || echo "Warning: Failed to write data-state"

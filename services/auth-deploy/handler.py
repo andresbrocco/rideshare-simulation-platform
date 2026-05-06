@@ -32,6 +32,8 @@ SSM_SESSION_PARAM = "/rideshare/session/deadline"
 SCHEDULER_GROUP = "default"
 SCHEDULER_NAME = "rideshare-auto-teardown"
 GITHUB_TEARDOWN_WORKFLOW = "teardown-platform.yml"
+SSM_DATA_STATE_PARAM = "/rideshare/data-state"
+GITHUB_RESET_WORKFLOW = "reset-platform.yml"
 SESSION_STEP_MINUTES = 30
 MAX_REMAINING_SECONDS = 2 * 3600  # 2 hours
 PLATFORM_COST_PER_HOUR = 0.31
@@ -116,6 +118,7 @@ NO_AUTH_ACTIONS = {
     "extend-session",
     "shrink-session",
     "get-login-history",
+    "data-state",
 }
 
 SENSITIVE_FIELDS = {"api_key", "password"}
@@ -997,6 +1000,96 @@ def delete_session() -> None:
     except ClientError as e:
         if e.response["Error"]["Code"] != "ResourceNotFoundException":
             raise
+
+
+def get_data_state() -> dict[str, Any]:
+    """Read data state from SSM Parameter Store."""
+    client = get_ssm_client()
+    try:
+        response = client.get_parameter(Name=SSM_DATA_STATE_PARAM)
+        return json.loads(response["Parameter"]["Value"])
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ParameterNotFound":
+            return {"status": "unknown"}
+        raise
+
+
+def set_data_state(status: str, reset_run_id: int | None = None) -> None:
+    """Write data state to SSM Parameter Store."""
+    data: dict[str, Any] = {
+        "status": status,
+        "updated_at": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    if reset_run_id is not None:
+        data["reset_run_id"] = reset_run_id
+    get_ssm_client().put_parameter(
+        Name=SSM_DATA_STATE_PARAM,
+        Value=json.dumps(data),
+        Type="String",
+        Overwrite=True,
+    )
+
+
+def handle_data_state() -> tuple[int, dict[str, Any]]:
+    """Handle data-state action — return current lakehouse data state."""
+    print("Action: data-state")
+    state = get_data_state()
+
+    # Auto-transition: if resetting, check GitHub workflow status
+    if state.get("status") == "resetting":
+        try:
+            github_pat = get_secret(SECRET_GITHUB_PAT)
+            path = (
+                f"/repos/{GITHUB_REPO}/actions/workflows/"
+                f"{GITHUB_RESET_WORKFLOW}/runs?per_page=1"
+            )
+            gh_status, gh_data = github_api_request("GET", path, github_pat)
+            if gh_status == 200:
+                runs = gh_data.get("workflow_runs", [])
+                if runs:
+                    latest_status = runs[0].get("status", "")
+                    if latest_status not in ("in_progress", "queued"):
+                        conclusion = runs[0].get("conclusion", "")
+                        new_status = "clean" if conclusion == "success" else "error"
+                        set_data_state(new_status)
+                        state = get_data_state()
+        except Exception as e:
+            print(f"Warning: Failed to check reset workflow status: {e}")
+
+    print(f"Action data-state completed: 200 (status={state.get('status')})")
+    return 200, state
+
+
+def handle_reset_data(api_key: str) -> tuple[int, dict[str, Any]]:
+    """Handle reset-data action — trigger reset-platform workflow."""
+    print("Action: reset-data")
+    if not validate_api_key(api_key):
+        print("Action reset-data completed: 401")
+        return 401, {"error": "Invalid password"}
+
+    try:
+        github_pat = get_secret(SECRET_GITHUB_PAT)
+    except Exception as e:
+        print(f"Error retrieving GitHub PAT: {e}")
+        print("Action reset-data completed: 500")
+        return 500, {"error": "Failed to retrieve GitHub credentials"}
+
+    path = f"/repos/{GITHUB_REPO}/actions/workflows/{GITHUB_RESET_WORKFLOW}/dispatches"
+    body = {"ref": "main", "inputs": {"confirmation": "RESET"}}
+
+    status_code, response_data = github_api_request("POST", path, github_pat, body)
+
+    if status_code == 204:
+        set_data_state("resetting")
+        print("Action reset-data completed: 200")
+        return 200, {"triggered": True, "status": "resetting"}
+
+    print(f"GitHub API error: {status_code} - {response_data}")
+    print("Action reset-data completed: 502")
+    return 502, {
+        "error": "Failed to trigger data reset",
+        "details": response_data.get("message", "Unknown error"),
+    }
 
 
 def github_api_request(
@@ -2847,6 +2940,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "teardown-status": handle_teardown_status,
             "get-deploy-progress": handle_get_deploy_progress,
             "get-login-history": handle_get_login_history,
+            "data-state": handle_data_state,
         }
         auth_handlers: dict[str, Any] = {
             "validate": handle_validate,
@@ -2856,6 +2950,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "ensure-session": handle_ensure_session,
             "complete-teardown": handle_complete_teardown,
             "reprovision-visitors": handle_reprovision_visitors,
+            "reset-data": handle_reset_data,
         }
 
         if action in no_auth_handlers:
@@ -2964,6 +3059,8 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "reprovision-visitors",
                 "start-simulation",
                 "get-login-history",
+                "data-state",
+                "reset-data",
             ],
         }
 
@@ -3015,6 +3112,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "teardown-status": handle_teardown_status,
         "get-deploy-progress": handle_get_deploy_progress,
         "get-login-history": handle_get_login_history,
+        "data-state": handle_data_state,
     }
     auth_handlers: dict[str, Any] = {
         "validate": handle_validate,
@@ -3024,6 +3122,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "ensure-session": handle_ensure_session,
         "complete-teardown": handle_complete_teardown,
         "reprovision-visitors": handle_reprovision_visitors,
+        "reset-data": handle_reset_data,
     }
 
     if action in no_auth_handlers:
@@ -3117,6 +3216,8 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "reprovision-visitors",
                 "start-simulation",
                 "get-login-history",
+                "data-state",
+                "reset-data",
             ],
         }
 
