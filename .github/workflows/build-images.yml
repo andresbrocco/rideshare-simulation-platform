@@ -227,6 +227,11 @@ jobs:
             cp -r schemas services/simulation/schemas
           fi
 
+          # Control panel imports design/tokens.json from outside its service directory
+          if [ "${{ matrix.service }}" = "control-panel" ]; then
+            cp -r design services/control-panel/design
+          fi
+
           CACHE_REPO="$ECR_REGISTRY/$ECR_REPOSITORY"
 
           BUILD_ARGS=(
@@ -255,6 +260,10 @@ jobs:
 
           if [ "${{ matrix.service }}" = "simulation" ]; then
             rm -rf services/simulation/schemas
+          fi
+
+          if [ "${{ matrix.service }}" = "control-panel" ]; then
+            rm -rf services/control-panel/design
           fi
 
       - name: Output image URIs

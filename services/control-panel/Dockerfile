@@ -40,6 +40,9 @@ RUN npm ci
 COPY . .
 # Production builds need zones.geojson in public/ — sourced from services/simulation/data/
 # via Docker Compose bind mount in development; for production, widen the build context.
+# design/tokens.json lives at repo root; CI copies it into build context.
+# Place at /design/ so the relative import ../../../design/tokens.json resolves from /app/src/.
+COPY design/tokens.json /design/tokens.json
 
 # Vite bakes VITE_* env vars into the bundle at build time
 ARG VITE_API_URL
