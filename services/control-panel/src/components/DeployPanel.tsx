@@ -881,7 +881,11 @@ export default function DeployPanel({
               </span>
             </div>
           )}
-          <button className={styles.deployButton} onClick={handleDeploy} disabled={launching}>
+          <button
+            className={styles.deployButton}
+            onClick={handleDeploy}
+            disabled={launching || dataState?.status === 'resetting'}
+          >
             {launching ? 'Triggering...' : 'Deploy Platform'}
           </button>
           <div className={styles.warnings}>
