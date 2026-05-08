@@ -37,6 +37,7 @@ from handler import (
     _build_welcome_email,
     _decrypt_password,
     _encrypt_password,
+    _generate_syllabic_password,
     _hash_password_pbkdf2,
     _provision_airflow,
     _provision_grafana,
@@ -589,7 +590,22 @@ class TestPasswordGeneration:
         assert status == 200
         assert "password" not in body
         assert len(captured_passwords) == 1
-        assert len(captured_passwords[0]) >= 8
+        password = captured_passwords[0]
+        assert len(password) == 8
+        assert password.isalpha() and password.islower()
+
+    @pytest.mark.unit
+    def test_generated_password_is_syllabic(self) -> None:
+        """_generate_syllabic_password produces alternating consonant-vowel characters."""
+        consonants = set("bcdfghjklmnprstvwz")
+        vowels = set("aeiou")
+        password = _generate_syllabic_password()
+        assert len(password) == 8
+        for i, ch in enumerate(password):
+            if i % 2 == 0:
+                assert ch in consonants
+            else:
+                assert ch in vowels
 
     @pytest.mark.unit
     def test_uses_provided_password_when_supplied(self) -> None:

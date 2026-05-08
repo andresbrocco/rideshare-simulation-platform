@@ -2112,6 +2112,18 @@ SECRET_GRAFANA_ADMIN_PASSWORD = "rideshare/core"
 SECRET_DATA_PIPELINE = "rideshare/data-pipeline"
 
 
+def _generate_syllabic_password() -> str:
+    """Generate a short pronounceable password of 4 consonant-vowel syllables.
+
+    Produces an 8-character lowercase string (e.g. 'korutile') that is easy
+    to read aloud and type manually.  Uses ``secrets.choice`` for
+    cryptographic randomness.
+    """
+    consonants = "bcdfghjklmnprstvwz"
+    vowels = "aeiou"
+    return "".join(secrets.choice(consonants) + secrets.choice(vowels) for _ in range(4))
+
+
 def _hash_password_pbkdf2(password: str) -> str:
     """Hash a plaintext password with PBKDF2-SHA256 for Trino's file authenticator.
 
@@ -2526,7 +2538,7 @@ def handle_provision_visitor(
 
     # Generate a password when the caller omits one; validate explicit passwords.
     if not password:
-        effective_password = secrets.token_urlsafe(16)
+        effective_password = _generate_syllabic_password()
     else:
         if len(password) < 8:
             print("Action provision-visitor completed: 400")
