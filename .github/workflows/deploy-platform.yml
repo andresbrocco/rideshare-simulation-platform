@@ -664,6 +664,28 @@ jobs:
 
           echo "Route 53 wildcard record created: *.ridesharing.portfolio.andresbrocco.com -> $ALB_HOSTNAME"
 
+      - name: Verify external service reachability
+        env:
+          LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
+        run: |
+          echo "Waiting for all services to pass external health checks (up to 5 minutes)..."
+          for i in $(seq 1 30); do
+            RESULT=$(curl -s --max-time 15 -X POST "${LAMBDA_URL}" \
+              -H "Content-Type: application/json" \
+              -d '{"action":"service-health"}' || echo '{"services":{}}')
+
+            MISSING=$(echo "$RESULT" | python3 -c "import json,sys; s=json.load(sys.stdin).get('services',{}); print(' '.join(k for k in ['simulation_api','grafana','airflow','prometheus'] if not s.get(k)))" 2>/dev/null || echo "simulation_api grafana airflow prometheus")
+            if [ -z "$MISSING" ]; then
+              echo "All required services are externally reachable"
+              break
+            fi
+            echo "Attempt $i/30: still waiting for: $MISSING"
+            if [ "$i" -eq 30 ]; then
+              echo "::warning::Some services did not pass external health checks after 5 minutes: $MISSING"
+            fi
+            sleep 10
+          done
+
       - name: Deployment Summary
         run: |
           echo "================================"
