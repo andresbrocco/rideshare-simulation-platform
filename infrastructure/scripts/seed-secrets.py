@@ -65,6 +65,7 @@ SECRETS: dict[str, dict[str, str]] = {
         "REDIS_PASSWORD": "admin",
         "SCHEMA_REGISTRY_USER": "admin",
         "SCHEMA_REGISTRY_PASSWORD": "admin",
+        "SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO": "admin:admin",
         "GRAFANA_ADMIN_USER": "admin",
         "GRAFANA_ADMIN_PASSWORD": "admin",
     },

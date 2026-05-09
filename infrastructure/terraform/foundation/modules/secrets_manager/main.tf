@@ -101,13 +101,14 @@ resource "aws_secretsmanager_secret_version" "core" {
   secret_id = aws_secretsmanager_secret.core.id
 
   secret_string = jsonencode({
-    KAFKA_SASL_USERNAME      = "kafka"
-    KAFKA_SASL_PASSWORD      = random_password.kafka_password.result
-    REDIS_PASSWORD           = random_password.redis_password.result
-    SCHEMA_REGISTRY_USER     = "schema-registry"
-    SCHEMA_REGISTRY_PASSWORD = random_password.schema_registry_password.result
-    GRAFANA_ADMIN_USER       = "admin"
-    GRAFANA_ADMIN_PASSWORD   = random_password.grafana_admin_password.result
+    KAFKA_SASL_USERNAME                  = "kafka"
+    KAFKA_SASL_PASSWORD                  = random_password.kafka_password.result
+    REDIS_PASSWORD                       = random_password.redis_password.result
+    SCHEMA_REGISTRY_USER                 = "schema-registry"
+    SCHEMA_REGISTRY_PASSWORD             = random_password.schema_registry_password.result
+    SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO = "schema-registry:${random_password.schema_registry_password.result}"
+    GRAFANA_ADMIN_USER                   = "admin"
+    GRAFANA_ADMIN_PASSWORD               = random_password.grafana_admin_password.result
   })
 }
 
