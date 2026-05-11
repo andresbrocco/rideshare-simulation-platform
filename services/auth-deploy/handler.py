@@ -608,10 +608,15 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f"pipelines, a medallion lakehouse, and real-time analytics in one live system.\n\n"
         f"What to explore:\n\n"
         f'  1. Hit "Deploy" on the landing page ({LANDING_PAGE_URL}), then open\n'
-        f"     Control Panel for the live map\n"
-        f"  2. Check Grafana dashboards — Kafka throughput, driver utilization,\n"
-        f"     pipeline health\n"
-        f"  3. Run SQL in Trino against the Gold star schema\n\n"
+        f"     Control Panel — watch hundreds of simulated drivers move across\n"
+        f"     São Paulo in real time\n"
+        f"  2. Browse Grafana dashboards across three areas: Business Intelligence\n"
+        f"     (demand analysis, revenue, driver & rider profiles), Data Engineering\n"
+        f"     (Kafka ingestion rates, data quality), and Operations (simulation\n"
+        f"     health & performance)\n"
+        f"  3. Open Airflow and watch the pipeline run — Silver and Gold dbt\n"
+        f"     transformations fire automatically, cleaning raw events, building\n"
+        f"     the star schema, and surfacing quality alerts\n\n"
         f"Note: Your credentials will work once the platform is running. If the platform is currently "
         f'offline, hit "Deploy" on the landing page — services typically start '
         f"within about 20 minutes.\n\n"
@@ -709,9 +714,9 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f"<p><strong>What to explore:</strong></p>"
         f'<ol style="padding-left:20px;margin:8px 0;line-height:1.7;">'
         f'<li>Hit "Deploy" on the {car_icon}<a href="{LANDING_PAGE_URL}" style="color:#00ff88;">landing page</a>, '
-        f"then open Control Panel for the live map</li>"
-        f"<li>Check Grafana dashboards — Kafka throughput, driver utilization, pipeline health</li>"
-        f"<li>Run SQL in Trino against the Gold star schema</li>"
+        f"then open Control Panel — watch hundreds of simulated drivers move across São Paulo in real time</li>"
+        f"<li>Browse Grafana dashboards across three areas: <em>Business Intelligence</em> (demand analysis, revenue, driver &amp; rider profiles), <em>Data Engineering</em> (Kafka ingestion rates, data quality), and <em>Operations</em> (simulation health &amp; performance)</li>"
+        f"<li>Open Airflow and watch the pipeline run — Silver and Gold dbt transformations fire automatically, cleaning raw events, building the star schema, and surfacing quality alerts</li>"
         f"</ol></td></tr>"
         # Deploy callout
         f'<tr><td style="padding:8px 32px 16px;">'
