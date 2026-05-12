@@ -281,11 +281,27 @@ jobs:
             --argjson databases "$DATABASES" \
             '{host: $host, port: 5432, master_password: $password, databases: $databases}')
 
-          aws lambda invoke \
-            --function-name rideshare-rds-reset \
-            --payload "$PAYLOAD" \
-            --cli-binary-format raw-in-base64-out \
-            /tmp/rds-reset-response.json
+          INVOKE_SUCCESS=false
+          for ATTEMPT in $(seq 1 5); do
+            if aws lambda invoke \
+              --function-name rideshare-rds-reset \
+              --payload "$PAYLOAD" \
+              --cli-binary-format raw-in-base64-out \
+              /tmp/rds-reset-response.json 2>/tmp/rds-invoke-error.txt; then
+              INVOKE_SUCCESS=true
+              break
+            fi
+            BACKOFF=$((5 * (2 ** (ATTEMPT - 1))))
+            echo "::warning::Lambda invoke attempt $ATTEMPT/5 failed — retrying in ${BACKOFF}s..."
+            cat /tmp/rds-invoke-error.txt
+            sleep "$BACKOFF"
+          done
+
+          if [ "$INVOKE_SUCCESS" != "true" ]; then
+            echo "::error::Lambda invoke failed after 5 attempts"
+            cat /tmp/rds-invoke-error.txt
+            exit 1
+          fi
 
           cat /tmp/rds-reset-response.json
           BODY=$(jq -r '.body' /tmp/rds-reset-response.json)
