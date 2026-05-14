@@ -802,6 +802,15 @@ export default function DeployPanel({
                 {dataState.status === 'error' && 'Reset error'}
                 {dataState.status === 'unknown' && 'Unknown'}
               </span>
+              {role === 'admin' && dataState.status === 'populated' && (
+                <button
+                  className={styles.resetButton}
+                  onClick={() => setShowResetModal(true)}
+                  disabled={resetting}
+                >
+                  {resetting ? 'Resetting...' : 'Reset'}
+                </button>
+              )}
             </div>
           )}
           <button
@@ -815,15 +824,6 @@ export default function DeployPanel({
             <span className={styles.warning}>~$0.31/hour</span>
             <span className={styles.warning}>~20 min deploy time</span>
           </div>
-          {role === 'admin' && dataState && dataState.status !== 'resetting' && (
-            <button
-              className={styles.resetButton}
-              onClick={() => setShowResetModal(true)}
-              disabled={resetting}
-            >
-              {resetting ? 'Resetting...' : 'Reset Lakehouse Data'}
-            </button>
-          )}
           <ConfirmModal
             isOpen={showResetModal}
             title="Reset Lakehouse Data"
