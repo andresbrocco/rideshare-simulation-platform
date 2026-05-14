@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from handler import (
-    DEPLOY_PROGRESS_SERVICES,
+    DEPLOY_UI_LABELS,
     SESSION_STEP_MINUTES,
     SIMULATION_START_DEFAULTS,
     TEARDOWN_TIMEOUT_SECONDS,
@@ -13,13 +13,14 @@ from handler import (
     _mask_event,
     get_response_headers,
     handle_auto_teardown,
+    handle_complete_deploy_workflow,
     handle_complete_teardown,
     handle_deploy,
+    handle_deploy_status,
     handle_ensure_session,
-    handle_get_deploy_progress,
-    handle_report_deploy_progress,
     handle_service_health,
     handle_session_status,
+    handle_set_deploy_run_id,
     handle_set_teardown_run_id,
     handle_start_simulation,
     handle_status,
@@ -449,7 +450,7 @@ class TestHandleSessionStatus:
         assert body == {"active": False}
 
     def test_deploying_session(self) -> None:
-        session = {"deployed_at": 1000000}
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
         with (
             patch("handler.get_session", return_value=session),
             patch("handler.time") as mock_time,
@@ -463,7 +464,7 @@ class TestHandleSessionStatus:
 
     def test_deploying_auto_clears_after_timeout(self) -> None:
         """Stale deploying session is auto-cleared after DEPLOYING_TIMEOUT_SECONDS."""
-        session = {"deployed_at": 1000000}
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
         with (
             patch("handler.get_session", return_value=session),
             patch("handler.time") as mock_time,
@@ -477,7 +478,7 @@ class TestHandleSessionStatus:
 
     def test_deploying_no_clear_before_timeout(self) -> None:
         """Deploying session is NOT cleared before timeout expires."""
-        session = {"deployed_at": 1000000}
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
         with (
             patch("handler.get_session", return_value=session),
             patch("handler.time") as mock_time,
@@ -490,8 +491,32 @@ class TestHandleSessionStatus:
         assert body["deploying"] is True
         mock_delete.assert_not_called()
 
+    def test_deploying_with_deadline_but_not_completed(self) -> None:
+        """Session with deadline but deploy_workflow_completed=False stays in deploying."""
+        session = {"deployed_at": 1000000, "deadline": 1001000, "deploy_workflow_completed": False}
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.time") as mock_time,
+            patch("handler.get_secret", side_effect=Exception("no creds")),
+        ):
+            mock_time.time.return_value = 1000060
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["deploying"] is True
+        assert body["active"] is False
+
+    def test_active_when_deploy_workflow_completed(self) -> None:
+        """Session with deadline and deploy_workflow_completed=True is active."""
+        session = {"deployed_at": 1000000, "deadline": 1001000, "deploy_workflow_completed": True}
+        with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:
+            mock_time.time.return_value = 1000500
+            status, body = handle_session_status()
+        assert status == 200
+        assert body["active"] is True
+        assert body["remaining_seconds"] == 500
+
     def test_active_session(self) -> None:
-        session = {"deployed_at": 1000000, "deadline": 1001000}
+        session = {"deployed_at": 1000000, "deadline": 1001000, "deploy_workflow_completed": True}
         with patch("handler.get_session", return_value=session), patch("handler.time") as mock_time:
             mock_time.time.return_value = 1000500
             status, body = handle_session_status()
@@ -925,81 +950,159 @@ class TestHandleTeardownStatus:
             assert step["name"] == label
 
 
-class TestReportDeployProgress:
-    def test_success(self, mock_secrets: object) -> None:
-        session = {"deployed_at": 1000000}
+class TestDeployStatus:
+    def test_not_deploying_no_session(self) -> None:
+        with patch("handler.get_session", return_value=None):
+            status, body = handle_deploy_status()
+        assert status == 200
+        assert body == {"deploying": False}
+
+    def test_not_deploying_when_completed(self) -> None:
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": True}
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_deploy_status()
+        assert status == 200
+        assert body == {"deploying": False}
+
+    def test_deploying_no_run_id(self) -> None:
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
+        with (
+            patch("handler.get_session", return_value=session),
+            patch("handler.get_secret", side_effect=Exception("no creds")),
+        ):
+            status, body = handle_deploy_status()
+        assert status == 200
+        assert body["deploying"] is True
+        assert body["run_id"] is None
+        assert body["current_step"] == -1
+
+    def test_deploying_with_run_id(self, mock_secrets: object, mock_github_api: object) -> None:
+        session = {
+            "deployed_at": 1000000,
+            "deploy_run_id": 99999,
+            "deploy_workflow_completed": False,
+        }
+        mock_github_api.return_value = (200, {"jobs": []})
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_deploy_status()
+        assert status == 200
+        assert body["deploying"] is True
+        assert body["run_id"] == 99999
+
+    def test_step_mapping(self, mock_secrets: object, mock_github_api: object) -> None:
+        """Verify step ranges map workflow steps to UI steps correctly."""
+        # Simulate: first 11 steps completed, step 11 in_progress
+        steps = [{"status": "completed"} for _ in range(11)]
+        steps.append({"status": "in_progress"})
+        steps.extend([{"status": "queued"} for _ in range(25)])  # remaining
+        session = {
+            "deployed_at": 1000000,
+            "deploy_run_id": 99999,
+            "deploy_workflow_completed": False,
+        }
+        mock_github_api.return_value = (
+            200,
+            {"jobs": [{"status": "in_progress", "conclusion": None, "steps": steps}]},
+        )
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_deploy_status()
+        assert status == 200
+        assert body["steps"][0]["status"] == "completed"  # 0-9 all completed
+        assert body["steps"][1]["status"] == "completed"  # 10 completed
+        assert body["steps"][2]["status"] == "in_progress"  # 11-20, step 11 in_progress
+        assert body["steps"][3]["status"] == "pending"  # 21-27
+        assert body["current_step"] == 2
+        for step, label in zip(body["steps"], DEPLOY_UI_LABELS):
+            assert step["name"] == label
+
+    def test_resolves_run_id_from_github(
+        self, mock_secrets: object, mock_github_api: object
+    ) -> None:
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
+        mock_github_api.side_effect = [
+            (200, {"workflow_runs": [{"id": 77777, "created_at": "2001-09-09T01:46:40Z"}]}),
+            (200, {"jobs": []}),
+        ]
         mock_ssm = patch("handler.get_ssm_client").start()
         with patch("handler.get_session", return_value=session):
-            status, body = handle_report_deploy_progress("test-api-key", "kafka", True)
+            status, body = handle_deploy_status()
         assert status == 200
-        assert body["services"]["kafka"] is True
-        assert body["all_ready"] is False
+        assert body["run_id"] == 77777
+        # Verify run_id was cached in SSM
         mock_ssm.return_value.put_parameter.assert_called_once()
+        patch.stopall()
+
+    def test_github_api_error(self, mock_secrets: object, mock_github_api: object) -> None:
+        session = {
+            "deployed_at": 1000000,
+            "deploy_run_id": 99999,
+            "deploy_workflow_completed": False,
+        }
+        mock_github_api.return_value = (500, {"message": "Server Error"})
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_deploy_status()
+        assert status == 200
+        assert body["deploying"] is True
+        assert body["current_step"] == -1
+
+    def test_session_read_error(self) -> None:
+        with patch("handler.get_session", side_effect=RuntimeError("boom")):
+            status, body = handle_deploy_status()
+        assert status == 200
+        assert body == {"deploying": False}
+
+
+class TestSetDeployRunId:
+    def test_success(self, mock_secrets: object) -> None:
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
+        mock_ssm = patch("handler.get_ssm_client").start()
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_set_deploy_run_id("test-api-key", 12345)
+        assert status == 200
+        assert body["run_id"] == 12345
+        written = json.loads(mock_ssm.return_value.put_parameter.call_args[1]["Value"])
+        assert written["deploy_run_id"] == 12345
         patch.stopall()
 
     def test_no_session(self, mock_secrets: object) -> None:
         with patch("handler.get_session", return_value=None):
-            status, body = handle_report_deploy_progress("test-api-key", "kafka", True)
+            status, body = handle_set_deploy_run_id("test-api-key", 12345)
         assert status == 404
 
-    def test_invalid_service(self, mock_secrets: object) -> None:
-        session = {"deployed_at": 1000000}
-        with patch("handler.get_session", return_value=session):
-            status, body = handle_report_deploy_progress("test-api-key", "nonexistent", True)
-        assert status == 400
-        assert "Unknown service" in body["error"]
-
-    def test_all_ready_detection(self, mock_secrets: object) -> None:
-        progress = {svc: True for svc in DEPLOY_PROGRESS_SERVICES}
-        # Remove one to set it via the handler
-        last_svc = DEPLOY_PROGRESS_SERVICES[-1]
-        del progress[last_svc]
-        session = {"deployed_at": 1000000, "deploy_progress": progress}
-        patch("handler.get_ssm_client").start()
-        with patch("handler.get_session", return_value=session):
-            status, body = handle_report_deploy_progress("test-api-key", last_svc, True)
-        assert status == 200
-        assert body["all_ready"] is True
-        patch.stopall()
-
     def test_invalid_key(self, mock_secrets: object) -> None:
-        status, body = handle_report_deploy_progress("wrong-key", "kafka", True)
+        status, body = handle_set_deploy_run_id("wrong-key", 12345)
         assert status == 401
 
 
-class TestGetDeployProgress:
-    def test_no_session(self) -> None:
+class TestCompleteDeployWorkflow:
+    def test_success(self, mock_secrets: object) -> None:
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
+        mock_ssm = patch("handler.get_ssm_client").start()
+        with patch("handler.get_session", return_value=session):
+            status, body = handle_complete_deploy_workflow("test-api-key")
+        assert status == 200
+        assert body["success"] is True
+        written = json.loads(mock_ssm.return_value.put_parameter.call_args[1]["Value"])
+        assert written["deploy_workflow_completed"] is True
+        patch.stopall()
+
+    def test_no_session(self, mock_secrets: object) -> None:
         with patch("handler.get_session", return_value=None):
-            status, body = handle_get_deploy_progress()
-        assert status == 200
-        assert body == {"services": {}, "all_ready": False}
+            status, body = handle_complete_deploy_workflow("test-api-key")
+        assert status == 404
 
-    def test_partial_progress(self) -> None:
-        session = {
-            "deployed_at": 1000000,
-            "deploy_progress": {"kafka": True, "redis": True},
-        }
-        with patch("handler.get_session", return_value=session):
-            status, body = handle_get_deploy_progress()
-        assert status == 200
-        assert body["services"]["kafka"] is True
-        assert body["services"]["redis"] is True
-        assert body["all_ready"] is False
+    def test_invalid_key(self, mock_secrets: object) -> None:
+        status, body = handle_complete_deploy_workflow("wrong-key")
+        assert status == 401
 
-    def test_all_ready(self) -> None:
-        progress = {svc: True for svc in DEPLOY_PROGRESS_SERVICES}
-        session = {"deployed_at": 1000000, "deploy_progress": progress}
+    def test_idempotent(self, mock_secrets: object) -> None:
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": True}
+        patch("handler.get_ssm_client").start()
         with patch("handler.get_session", return_value=session):
-            status, body = handle_get_deploy_progress()
+            status, body = handle_complete_deploy_workflow("test-api-key")
         assert status == 200
-        assert body["all_ready"] is True
-
-    def test_no_progress_field(self) -> None:
-        session = {"deployed_at": 1000000}
-        with patch("handler.get_session", return_value=session):
-            status, body = handle_get_deploy_progress()
-        assert status == 200
-        assert body == {"services": {}, "all_ready": False}
+        assert body["success"] is True
+        patch.stopall()
 
 
 class TestSetTeardownRunId:
@@ -1072,7 +1175,7 @@ class TestSessionStatusGitHubValidation:
 
         The frontend will call activate-session once deploy-progress reports all_ready.
         """
-        session = {"deployed_at": 1000000}
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
         mock_github_api.return_value = (
             200,
             {
@@ -1100,7 +1203,7 @@ class TestSessionStatusGitHubValidation:
         self, mock_secrets: object, mock_github_api: object
     ) -> None:
         """Deploying session cleaned up when deploy workflow failed."""
-        session = {"deployed_at": 1000000}
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
         mock_github_api.return_value = (
             200,
             {
@@ -1128,7 +1231,7 @@ class TestSessionStatusGitHubValidation:
         self, mock_secrets: object, mock_github_api: object
     ) -> None:
         """Deploying session cleaned up when deploy workflow was cancelled."""
-        session = {"deployed_at": 1000000}
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
         mock_github_api.return_value = (
             200,
             {
@@ -1156,7 +1259,7 @@ class TestSessionStatusGitHubValidation:
         self, mock_secrets: object, mock_github_api: object
     ) -> None:
         """Deploying session kept when deploy workflow is in_progress."""
-        session = {"deployed_at": 1000000}
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
         mock_github_api.return_value = (
             200,
             {"workflow_runs": [{"status": "in_progress", "created_at": "2001-09-09T01:46:40Z"}]},
@@ -1174,7 +1277,7 @@ class TestSessionStatusGitHubValidation:
 
     def test_deploying_github_api_failure_failsafe(self, mock_secrets: object) -> None:
         """GitHub API failure during deploying check -> session kept (fail-safe)."""
-        session = {"deployed_at": 1000000}
+        session = {"deployed_at": 1000000, "deploy_workflow_completed": False}
         with (
             patch("handler.get_session", return_value=session),
             patch("handler.time") as mock_time,

@@ -79,25 +79,6 @@ EMAIL_ICONS_BASE_URL = f"{LANDING_PAGE_URL}/icons/email"
 GITHUB_REPO_URL = "https://github.com/andresbrocco/rideshare-simulation-platform"
 LINKEDIN_URL = "https://www.linkedin.com/in/andresbrocco/"
 
-DEPLOY_PROGRESS_SERVICES = [
-    "kafka",
-    "redis",
-    "schema-registry",
-    "osrm",
-    "stream-processor",
-    "simulation",
-    "bronze-ingestion",
-    "airflow",
-    "glue-catalog",
-    "trino",
-    "prometheus",
-    "grafana",
-    "loki",
-    "tempo",
-    "control-panel",
-    "performance-controller",
-]
-
 SERVICE_HEALTH_ENDPOINTS: dict[str, str] = {
     "simulation_api": "https://api.ridesharing.portfolio.andresbrocco.com/health",
     "grafana": "https://grafana.ridesharing.portfolio.andresbrocco.com/api/health",
@@ -112,7 +93,7 @@ NO_AUTH_ACTIONS = {
     "auto-teardown",
     "service-health",
     "teardown-status",
-    "get-deploy-progress",
+    "deploy-status",
     "provision-visitor",
     "visitor-login",
     "extend-session",
@@ -170,6 +151,25 @@ TEARDOWN_UI_LABELS = [
     "Cleaning up DNS records...",
     "Destroying infrastructure...",
     "Verifying cleanup...",
+    "Finalizing...",
+]
+
+DEPLOY_STEP_RANGES = [
+    (0, 10),  # UI 0: Provisioning infrastructure
+    (10, 11),  # UI 1: Applying Terraform
+    (11, 21),  # UI 2: Preparing deployment
+    (21, 28),  # UI 3: Starting services
+    (28, 31),  # UI 4: Configuring platform
+    (31, 34),  # UI 5: Setting up networking
+    (34, 37),  # UI 6: Finalizing
+]
+DEPLOY_UI_LABELS = [
+    "Provisioning infrastructure...",
+    "Applying Terraform...",
+    "Preparing deployment...",
+    "Starting services...",
+    "Configuring platform...",
+    "Setting up networking...",
     "Finalizing...",
 ]
 
@@ -965,7 +965,7 @@ def create_session_deploying(deployed_at: int) -> None:
     when the frontend calls activate-session after health check passes.
     """
     client = get_ssm_client()
-    session_data = json.dumps({"deployed_at": deployed_at})
+    session_data = json.dumps({"deployed_at": deployed_at, "deploy_workflow_completed": False})
     client.put_parameter(
         Name=SSM_SESSION_PARAM,
         Value=session_data,
@@ -1441,7 +1441,7 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
         }
 
     # Session exists but countdown not yet started (deploying)
-    if deadline is None:
+    if not session.get("deploy_workflow_completed", False):
         if elapsed_seconds > DEPLOYING_TIMEOUT_SECONDS:
             # Stale deploying session — deploy likely failed or was abandoned
             print(
@@ -1689,50 +1689,174 @@ def handle_teardown_status() -> tuple[int, dict[str, Any]]:
         }
 
 
-def handle_activate_session(api_key: str) -> tuple[int, dict[str, Any]]:
-    """Handle activate-session action.
+def handle_deploy_status() -> tuple[int, dict[str, Any]]:
+    """Handle deploy-status action (no auth required).
 
-    Called by frontend when health check passes. Sets the deadline and
-    schedules auto-teardown. Idempotent — returns existing values if
-    deadline is already set.
+    Returns step-level progress for an in-progress deploy workflow.
     """
-    print("Action: activate-session")
-    if not validate_api_key(api_key):
-        print("Action activate-session completed: 401")
-        return 401, {"error": "Invalid password"}
+    print("Action: deploy-status")
+    try:
+        session = get_session()
+    except Exception as e:
+        print(f"Error reading session: {e}")
+        print("Action deploy-status completed: 200")
+        return 200, {"deploying": False}
 
-    session = get_session()
-    if session is None:
-        print("Action activate-session completed: 404")
-        return 404, {"error": "No active session"}
+    if session is None or session.get("deploy_workflow_completed", False):
+        print("Action deploy-status completed: 200")
+        return 200, {"deploying": False}
 
-    # Idempotent: if deadline already set, return existing values
-    if session.get("deadline") is not None:
-        now = int(time.time())
-        remaining = max(0, session["deadline"] - now)
-        print("Action activate-session completed: 200")
+    deployed_at = session.get("deployed_at")
+
+    # Resolve run ID
+    run_id = session.get("deploy_run_id")
+    github_pat: str | None = None
+
+    if run_id is None:
+        # Try to find the run from recent workflow runs
+        try:
+            github_pat = get_secret(SECRET_GITHUB_PAT)
+            path = f"/repos/{GITHUB_REPO}/actions/workflows/" f"{GITHUB_WORKFLOW}/runs?per_page=3"
+            status_code, response_data = github_api_request("GET", path, github_pat)
+
+            if status_code == 200:
+                cutoff = (deployed_at or 0) - 60
+                for run in response_data.get("workflow_runs", []):
+                    from datetime import datetime
+
+                    created_at_str = run.get("created_at", "")
+                    try:
+                        created_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                        created_ts = int(created_dt.timestamp())
+                    except (ValueError, AttributeError):
+                        continue
+
+                    if created_ts >= cutoff:
+                        run_id = run["id"]
+                        # Cache run_id in SSM for future polls
+                        try:
+                            session["deploy_run_id"] = run_id
+                            get_ssm_client().put_parameter(
+                                Name=SSM_SESSION_PARAM,
+                                Value=json.dumps(session),
+                                Type="String",
+                                Overwrite=True,
+                            )
+                        except Exception as e:
+                            print(f"Warning: Failed to cache run_id: {e}")
+                        break
+        except Exception as e:
+            print(f"Warning: Failed to query deploy runs: {e}")
+
+    # Build default pending steps
+    pending_steps = [{"name": label, "status": "pending"} for label in DEPLOY_UI_LABELS]
+
+    if run_id is None:
+        print("Action deploy-status completed: 200")
         return 200, {
-            "success": True,
-            "remaining_seconds": remaining,
-            "deadline": session["deadline"],
+            "deploying": True,
+            "run_id": None,
+            "workflow_status": "queued",
+            "workflow_conclusion": None,
+            "current_step": -1,
+            "total_steps": len(DEPLOY_UI_LABELS),
+            "steps": pending_steps,
         }
 
-    # Set deadline and schedule teardown
-    now = int(time.time())
-    deadline = now + (SESSION_STEP_MINUTES * 60)
+    # Fetch job steps from GitHub API
     try:
-        update_session_deadline(deadline)
-    except Exception as e:
-        print(f"Error activating session: {e}")
-        print("Action activate-session completed: 500")
-        return 500, {"error": "Failed to activate session"}
+        if github_pat is None:
+            github_pat = get_secret(SECRET_GITHUB_PAT)
+        path = f"/repos/{GITHUB_REPO}/actions/runs/{run_id}/jobs"
+        status_code, response_data = github_api_request("GET", path, github_pat)
 
-    print("Action activate-session completed: 200")
-    return 200, {
-        "success": True,
-        "remaining_seconds": SESSION_STEP_MINUTES * 60,
-        "deadline": deadline,
-    }
+        if status_code != 200:
+            print(f"GitHub jobs API returned {status_code}: {response_data}")
+            print("Action deploy-status completed: 200")
+            return 200, {
+                "deploying": True,
+                "run_id": run_id,
+                "workflow_status": "in_progress",
+                "workflow_conclusion": None,
+                "current_step": -1,
+                "total_steps": len(DEPLOY_UI_LABELS),
+                "steps": pending_steps,
+            }
+
+        jobs = response_data.get("jobs", [])
+        if not jobs:
+            print("Action deploy-status completed: 200")
+            return 200, {
+                "deploying": True,
+                "run_id": run_id,
+                "workflow_status": "queued",
+                "workflow_conclusion": None,
+                "current_step": -1,
+                "total_steps": len(DEPLOY_UI_LABELS),
+                "steps": pending_steps,
+            }
+
+        job = jobs[0]
+        workflow_status = job.get("status", "queued")
+        workflow_conclusion = job.get("conclusion")
+        job_steps = job.get("steps", [])
+
+        # Map workflow steps to UI steps using DEPLOY_STEP_RANGES
+        ui_steps: list[dict[str, str]] = []
+        current_step = -1
+
+        for ui_idx, (start, end) in enumerate(DEPLOY_STEP_RANGES):
+            range_steps = job_steps[start:end]
+
+            if not range_steps:
+                ui_steps.append({"name": DEPLOY_UI_LABELS[ui_idx], "status": "pending"})
+                continue
+
+            all_completed = all(s.get("status") == "completed" for s in range_steps)
+            any_in_progress = any(s.get("status") == "in_progress" for s in range_steps)
+
+            if all_completed:
+                ui_steps.append({"name": DEPLOY_UI_LABELS[ui_idx], "status": "completed"})
+            elif any_in_progress:
+                ui_steps.append({"name": DEPLOY_UI_LABELS[ui_idx], "status": "in_progress"})
+                current_step = ui_idx
+            else:
+                ui_steps.append({"name": DEPLOY_UI_LABELS[ui_idx], "status": "pending"})
+
+        # If no step is in_progress but some are completed, current_step is the
+        # first non-completed step (or last step if all completed)
+        if current_step == -1:
+            for i, step in enumerate(ui_steps):
+                if step["status"] != "completed":
+                    current_step = i
+                    break
+            else:
+                # All completed
+                current_step = len(ui_steps) - 1
+
+        print("Action deploy-status completed: 200")
+        return 200, {
+            "deploying": True,
+            "run_id": run_id,
+            "workflow_status": workflow_status,
+            "workflow_conclusion": workflow_conclusion,
+            "current_step": current_step,
+            "total_steps": len(DEPLOY_UI_LABELS),
+            "steps": ui_steps,
+        }
+
+    except Exception as e:
+        print(f"Error fetching deploy job steps: {e}")
+        print("Action deploy-status completed: 200")
+        return 200, {
+            "deploying": True,
+            "run_id": run_id,
+            "workflow_status": "in_progress",
+            "workflow_conclusion": None,
+            "current_step": -1,
+            "total_steps": len(DEPLOY_UI_LABELS),
+            "steps": pending_steps,
+        }
 
 
 def handle_ensure_session(api_key: str) -> tuple[int, dict[str, Any]]:
@@ -1990,68 +2114,6 @@ def handle_service_health() -> tuple[int, dict[str, Any]]:
     return 200, {"services": results}
 
 
-def handle_report_deploy_progress(
-    api_key: str, service: str, ready: bool
-) -> tuple[int, dict[str, Any]]:
-    """Report a single service's deploy readiness.
-
-    Called by the deploy workflow as each service comes online.
-    """
-    print("Action: report-deploy-progress")
-    if not validate_api_key(api_key):
-        print("Action report-deploy-progress completed: 401")
-        return 401, {"error": "Invalid password"}
-
-    if service not in DEPLOY_PROGRESS_SERVICES:
-        print("Action report-deploy-progress completed: 400")
-        return 400, {
-            "error": f"Unknown service: {service}",
-            "valid_services": DEPLOY_PROGRESS_SERVICES,
-        }
-
-    session = get_session()
-    if session is None:
-        print("Action report-deploy-progress completed: 404")
-        return 404, {"error": "No active session"}
-
-    deploy_progress: dict[str, bool] = session.get("deploy_progress", {})
-    deploy_progress[service] = ready
-    session["deploy_progress"] = deploy_progress
-
-    client = get_ssm_client()
-    client.put_parameter(
-        Name=SSM_SESSION_PARAM,
-        Value=json.dumps(session),
-        Type="String",
-        Overwrite=True,
-    )
-
-    all_ready = all(deploy_progress.get(svc, False) for svc in DEPLOY_PROGRESS_SERVICES)
-    print("Action report-deploy-progress completed: 200")
-    return 200, {
-        "services": deploy_progress,
-        "all_ready": all_ready,
-    }
-
-
-def handle_get_deploy_progress() -> tuple[int, dict[str, Any]]:
-    """Get current deploy progress (no auth required)."""
-    print("Action: get-deploy-progress")
-    session = get_session()
-    if session is None:
-        print("Action get-deploy-progress completed: 200")
-        return 200, {"services": {}, "all_ready": False}
-
-    deploy_progress: dict[str, bool] = session.get("deploy_progress", {})
-    if not deploy_progress:
-        print("Action get-deploy-progress completed: 200")
-        return 200, {"services": {}, "all_ready": False}
-
-    all_ready = all(deploy_progress.get(svc, False) for svc in DEPLOY_PROGRESS_SERVICES)
-    print("Action get-deploy-progress completed: 200")
-    return 200, {"services": deploy_progress, "all_ready": all_ready}
-
-
 def handle_set_teardown_run_id(api_key: str, run_id: int) -> tuple[int, dict[str, Any]]:
     """Store teardown workflow run ID in session.
 
@@ -2077,6 +2139,62 @@ def handle_set_teardown_run_id(api_key: str, run_id: int) -> tuple[int, dict[str
     )
     print("Action set-teardown-run-id completed: 200")
     return 200, {"success": True, "run_id": run_id}
+
+
+def handle_set_deploy_run_id(api_key: str, run_id: int) -> tuple[int, dict[str, Any]]:
+    """Store deploy workflow run ID in session.
+
+    Called by deploy-platform.yml to register the run ID for step tracking.
+    """
+    print("Action: set-deploy-run-id")
+    if not validate_api_key(api_key):
+        print("Action set-deploy-run-id completed: 401")
+        return 401, {"error": "Invalid password"}
+
+    session = get_session()
+    if session is None:
+        print("Action set-deploy-run-id completed: 404")
+        return 404, {"error": "No active session"}
+
+    session["deploy_run_id"] = run_id
+    client = get_ssm_client()
+    client.put_parameter(
+        Name=SSM_SESSION_PARAM,
+        Value=json.dumps(session),
+        Type="String",
+        Overwrite=True,
+    )
+    print("Action set-deploy-run-id completed: 200")
+    return 200, {"success": True, "run_id": run_id}
+
+
+def handle_complete_deploy_workflow(api_key: str) -> tuple[int, dict[str, Any]]:
+    """Mark deploy workflow as completed in session.
+
+    Called by deploy-platform.yml as its final step. Sets the
+    deploy_workflow_completed flag so session-status transitions
+    from deploying to active.
+    """
+    print("Action: complete-deploy-workflow")
+    if not validate_api_key(api_key):
+        print("Action complete-deploy-workflow completed: 401")
+        return 401, {"error": "Invalid password"}
+
+    session = get_session()
+    if session is None:
+        print("Action complete-deploy-workflow completed: 404")
+        return 404, {"error": "No active session"}
+
+    session["deploy_workflow_completed"] = True
+    client = get_ssm_client()
+    client.put_parameter(
+        Name=SSM_SESSION_PARAM,
+        Value=json.dumps(session),
+        Type="String",
+        Overwrite=True,
+    )
+    print("Action complete-deploy-workflow completed: 200")
+    return 200, {"success": True}
 
 
 def handle_complete_teardown(api_key: str) -> tuple[int, dict[str, Any]]:
@@ -2955,7 +3073,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "auto-teardown": handle_auto_teardown,
             "service-health": handle_service_health,
             "teardown-status": handle_teardown_status,
-            "get-deploy-progress": handle_get_deploy_progress,
+            "deploy-status": handle_deploy_status,
             "get-login-history": handle_get_login_history,
             "data-state": handle_data_state,
         }
@@ -2963,9 +3081,9 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
             "validate": handle_validate,
             "deploy": handle_deploy,
             "status": handle_status,
-            "activate-session": handle_activate_session,
             "ensure-session": handle_ensure_session,
             "complete-teardown": handle_complete_teardown,
+            "complete-deploy-workflow": handle_complete_deploy_workflow,
             "reprovision-visitors": handle_reprovision_visitors,
             "reset-data": handle_reset_data,
         }
@@ -3008,12 +3126,6 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 _record_login_event(event.get("email", ""), "deploy", "visitor")
             _log_response(action, status_code, response_body)
             return response_body
-        if action == "report-deploy-progress":
-            service = event.get("service", "")
-            ready = event.get("ready", True)
-            status_code, response_body = handle_report_deploy_progress(api_key, service, ready)
-            _log_response(action, status_code, response_body)
-            return response_body
         if action == "set-teardown-run-id":
             run_id = event.get("run_id")
             if run_id is None:
@@ -3021,6 +3133,15 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 _log_response(action, 400, response_body)
                 return response_body
             status_code, response_body = handle_set_teardown_run_id(api_key, run_id)
+            _log_response(action, status_code, response_body)
+            return response_body
+        if action == "set-deploy-run-id":
+            run_id = event.get("run_id")
+            if run_id is None:
+                response_body = {"error": "Missing required field: run_id"}
+                _log_response(action, 400, response_body)
+                return response_body
+            status_code, response_body = handle_set_deploy_run_id(api_key, run_id)
             _log_response(action, status_code, response_body)
             return response_body
         if action == "provision-visitor":
@@ -3063,14 +3184,14 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "session-status",
                 "service-health",
                 "teardown-status",
-                "get-deploy-progress",
-                "activate-session",
+                "deploy-status",
                 "ensure-session",
                 "extend-session",
                 "shrink-session",
-                "report-deploy-progress",
                 "set-teardown-run-id",
+                "set-deploy-run-id",
                 "complete-teardown",
+                "complete-deploy-workflow",
                 "provision-visitor",
                 "visitor-login",
                 "reprovision-visitors",
@@ -3127,7 +3248,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "auto-teardown": handle_auto_teardown,
         "service-health": handle_service_health,
         "teardown-status": handle_teardown_status,
-        "get-deploy-progress": handle_get_deploy_progress,
+        "deploy-status": handle_deploy_status,
         "get-login-history": handle_get_login_history,
         "data-state": handle_data_state,
     }
@@ -3135,9 +3256,9 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "validate": handle_validate,
         "deploy": handle_deploy,
         "status": handle_status,
-        "activate-session": handle_activate_session,
         "ensure-session": handle_ensure_session,
         "complete-teardown": handle_complete_teardown,
+        "complete-deploy-workflow": handle_complete_deploy_workflow,
         "reprovision-visitors": handle_reprovision_visitors,
         "reset-data": handle_reset_data,
     }
@@ -3176,10 +3297,6 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         status_code, response_body = handle_deploy(api_key, dbt_runner)
         if status_code == 200:
             _record_login_event(body.get("email", ""), "deploy", "visitor")
-    elif action == "report-deploy-progress":
-        service = body.get("service", "")
-        ready = body.get("ready", True)
-        status_code, response_body = handle_report_deploy_progress(api_key, service, ready)
     elif action == "set-teardown-run-id":
         run_id = body.get("run_id")
         if run_id is None:
@@ -3189,6 +3306,15 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "body": json.dumps({"error": "Missing required field: run_id"}),
             }
         status_code, response_body = handle_set_teardown_run_id(api_key, run_id)
+    elif action == "set-deploy-run-id":
+        run_id = body.get("run_id")
+        if run_id is None:
+            return {
+                "statusCode": 400,
+                "headers": response_headers,
+                "body": json.dumps({"error": "Missing required field: run_id"}),
+            }
+        status_code, response_body = handle_set_deploy_run_id(api_key, run_id)
     elif action == "provision-visitor":
         visitor_email = body.get("email", "")
         visitor_password = body.get("password") or None
@@ -3220,14 +3346,14 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
                 "session-status",
                 "service-health",
                 "teardown-status",
-                "get-deploy-progress",
-                "activate-session",
+                "deploy-status",
                 "ensure-session",
                 "extend-session",
                 "shrink-session",
-                "report-deploy-progress",
                 "set-teardown-run-id",
+                "set-deploy-run-id",
                 "complete-teardown",
+                "complete-deploy-workflow",
                 "provision-visitor",
                 "visitor-login",
                 "reprovision-visitors",

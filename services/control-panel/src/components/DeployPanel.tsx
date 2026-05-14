@@ -2,11 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   getSessionStatus,
   getServiceHealth,
-  getDeployProgress,
+  getDeployStatus,
   getTeardownStatus,
   triggerDeploy,
-  checkDeployStatus,
-  activateSession,
   extendSession,
   shrinkSession,
   getDataState,
@@ -14,7 +12,7 @@ import {
   LambdaServiceError,
   ALL_SERVICES_DOWN,
 } from '../services/lambda';
-import type { StatusResponse, ServiceHealthMap, DataStateResponse } from '../services/lambda';
+import type { ServiceHealthMap, DataStateResponse } from '../services/lambda';
 import { useRole } from '../hooks/useRole';
 import ConfirmModal from './ConfirmModal';
 import {
@@ -36,28 +34,14 @@ interface DeployPanelProps {
 
 type PanelState = 'idle' | 'deploying' | 'active' | 'tearing-down' | 'expired' | 'error';
 
-const WORKFLOW_STEPS = [
-  { label: 'Triggering deployment...', activeKey: 'queued' },
-  { label: 'Workflow running...', activeKey: 'in_progress' },
-] as const;
-
-const DEPLOY_SERVICES = [
-  'kafka',
-  'redis',
-  'schema-registry',
-  'osrm',
-  'stream-processor',
-  'simulation',
-  'bronze-ingestion',
-  'airflow',
-  'glue-catalog',
-  'trino',
-  'prometheus',
-  'grafana',
-  'loki',
-  'tempo',
-  'control-panel',
-  'performance-controller',
+const DEPLOY_STEPS = [
+  { label: 'Provisioning infrastructure...', activeKey: 'provisioning' },
+  { label: 'Applying Terraform...', activeKey: 'terraform' },
+  { label: 'Preparing deployment...', activeKey: 'preparing' },
+  { label: 'Starting services...', activeKey: 'services' },
+  { label: 'Configuring platform...', activeKey: 'configuring' },
+  { label: 'Setting up networking...', activeKey: 'networking' },
+  { label: 'Finalizing...', activeKey: 'finalizing' },
 ] as const;
 
 const ESTIMATED_DEPLOY_SECONDS = 1200; // 20 min (full convergence)
@@ -71,16 +55,6 @@ const TEARDOWN_STEPS = [
 ] as const;
 
 const ESTIMATED_TEARDOWN_SECONDS = 540; // 9 min
-
-// Map deploy-progress service names → ServiceHealthMap keys
-const DEPLOY_TO_HEALTH: Record<string, keyof ServiceHealthMap> = {
-  simulation: 'simulation_api',
-  grafana: 'grafana',
-  airflow: 'airflow',
-  trino: 'trino',
-  prometheus: 'prometheus',
-  'control-panel': 'control_panel',
-};
 
 const SESSION_STEP_SECONDS = 30 * 60;
 const MAX_REMAINING_SECONDS = 2 * 3600;
@@ -122,11 +96,10 @@ export default function DeployPanel({
   } = useDeployNotification();
 
   const [panelState, setPanelState] = useState<PanelState>('idle');
-  const [workflowStatus, setWorkflowStatus] = useState('queued');
+  const [deployStepIndex, setDeployStepIndex] = useState(-1);
   const [errorMessage, setErrorMessage] = useState('');
   const [networkError, setNetworkError] = useState(false);
   const [launching, setLaunching] = useState(false);
-  const [deployProgress, setDeployProgress] = useState<Record<string, boolean>>({});
   const [dbtRunner, setDbtRunner] = useState<'duckdb' | 'glue'>('duckdb');
 
   // Data state
@@ -148,13 +121,11 @@ export default function DeployPanel({
   const [teardownStartedAt, setTeardownStartedAt] = useState<number | null>(null);
 
   const mountedRef = useRef(true);
-  const statusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const deployProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const deployStatusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deadlineRef = useRef<number | null>(null);
   const deployedAtRef = useRef<number | null>(null);
-  const networkRetryCountRef = useRef(0);
   const pendingDeployRef = useRef(false);
   const pendingActionRef = useRef<'extend' | 'shrink' | null>(null);
   const serviceHealthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -194,13 +165,9 @@ export default function DeployPanel({
 
   // ── Cleanup helpers ─────────────────────────────────────────────
   const clearDeployPolling = useCallback(() => {
-    if (statusIntervalRef.current) {
-      clearInterval(statusIntervalRef.current);
-      statusIntervalRef.current = null;
-    }
-    if (deployProgressIntervalRef.current) {
-      clearInterval(deployProgressIntervalRef.current);
-      deployProgressIntervalRef.current = null;
+    if (deployStatusIntervalRef.current) {
+      clearInterval(deployStatusIntervalRef.current);
+      deployStatusIntervalRef.current = null;
     }
     if (serviceHealthIntervalRef.current) {
       clearInterval(serviceHealthIntervalRef.current);
@@ -279,73 +246,50 @@ export default function DeployPanel({
   );
 
   // ── Deploy status polling ──────────────────────────────────────
-  const pollStatus = useCallback(async () => {
-    if (!apiKey) return;
+  const pollDeployStatus = useCallback(async () => {
     try {
-      const status: StatusResponse = await checkDeployStatus(apiKey);
+      const data = await getDeployStatus();
       if (!mountedRef.current) return;
 
-      networkRetryCountRef.current = 0;
       setNetworkError(false);
-      setWorkflowStatus(status.status);
+      setDeployStepIndex(data.current_step);
 
-      if (status.conclusion === 'failure' || status.conclusion === 'cancelled') {
+      if (data.workflow_conclusion === 'failure' || data.workflow_conclusion === 'cancelled') {
         clearDeployPolling();
-        setErrorMessage(`Workflow ${status.conclusion}`);
+        setErrorMessage(`Workflow ${data.workflow_conclusion}`);
         setPanelState('error');
+        return;
+      }
+
+      if (!data.deploying && data.workflow_conclusion === 'success') {
+        // Deploy workflow finished — poll session-status for deadline
+        try {
+          const sessionData = await getSessionStatus();
+          if (!mountedRef.current) return;
+          if (sessionData.active && sessionData.deadline != null) {
+            transitionToActive(
+              sessionData.deadline,
+              sessionData.deployed_at ?? deployedAtRef.current
+            );
+            return;
+          }
+        } catch {
+          // Fall through — will retry next poll
+        }
       }
     } catch (err) {
       if (!mountedRef.current) return;
       if (err instanceof LambdaServiceError && err.code === 'NETWORK_ERROR') {
         setNetworkError(true);
-        networkRetryCountRef.current = Math.min(networkRetryCountRef.current + 1, 2);
       }
     }
-  }, [apiKey, clearDeployPolling]);
-
-  // ── Deploy progress polling ────────────────────────────────────
-  const pollDeployProgress = useCallback(async () => {
-    try {
-      const data = await getDeployProgress();
-      if (!mountedRef.current) return;
-
-      setDeployProgress(data.services);
-
-      if (data.all_ready) {
-        // All services reported ready — activate session timer
-        if (apiKey) {
-          try {
-            const result = await activateSession(apiKey);
-            if (!mountedRef.current) return;
-            transitionToActive(result.deadline, deployedAtRef.current);
-          } catch {
-            transitionToActive(
-              Math.floor(Date.now() / 1000) + SESSION_STEP_SECONDS,
-              deployedAtRef.current
-            );
-          }
-        } else {
-          transitionToActive(
-            Math.floor(Date.now() / 1000) + SESSION_STEP_SECONDS,
-            deployedAtRef.current
-          );
-        }
-      }
-    } catch {
-      // Silently ignore
-    }
-  }, [apiKey, transitionToActive]);
+  }, [clearDeployPolling, transitionToActive]);
 
   // ── Start deploy polling ───────────────────────────────────────
   const startDeployPolling = useCallback(() => {
-    pollStatus();
-    pollDeployProgress();
-    statusIntervalRef.current = setInterval(pollStatus, POLLING_CONFIG.STATUS_INTERVAL);
-    deployProgressIntervalRef.current = setInterval(
-      pollDeployProgress,
-      POLLING_CONFIG.HEALTH_INTERVAL
-    );
-  }, [pollStatus, pollDeployProgress]);
+    pollDeployStatus();
+    deployStatusIntervalRef.current = setInterval(pollDeployStatus, POLLING_CONFIG.STATUS_INTERVAL);
+  }, [pollDeployStatus]);
 
   // ── Client-side tick ───────────────────────────────────────────
   useEffect(() => {
@@ -398,19 +342,6 @@ export default function DeployPanel({
       }
     };
   }, [panelState, pollServiceHealth]);
-
-  // ── Derive service health from deploy progress during deploying ─
-  useEffect(() => {
-    if (panelState !== 'deploying') return;
-
-    const health: ServiceHealthMap = { ...ALL_SERVICES_DOWN };
-    for (const [deploySvc, healthId] of Object.entries(DEPLOY_TO_HEALTH)) {
-      if (deployProgress[deploySvc]) {
-        health[healthId] = true;
-      }
-    }
-    onServiceHealthChange(health);
-  }, [panelState, deployProgress, onServiceHealthChange]);
 
   // ── Session status polling (active state) ──────────────────────
   useEffect(() => {
@@ -676,8 +607,6 @@ export default function DeployPanel({
       setElapsedSeconds(0);
       setPanelState('deploying');
       markDeployStarted();
-      setWorkflowStatus('queued');
-      setDeployProgress({});
       startDeployPolling();
     } catch (err) {
       if (!mountedRef.current) return;
@@ -756,8 +685,6 @@ export default function DeployPanel({
     setPanelState('idle');
     setErrorMessage('');
     setNetworkError(false);
-    networkRetryCountRef.current = 0;
-    setDeployProgress({});
   };
 
   // ── Data state polling ─────────────────────────────────────────
@@ -810,10 +737,6 @@ export default function DeployPanel({
   }, [apiKey, onNeedAuth]);
 
   // ── Derived values ─────────────────────────────────────────────
-  const workflowStepIndex = WORKFLOW_STEPS.findIndex((s) => s.activeKey === workflowStatus);
-  const workflowRunning = workflowStatus === 'in_progress' || workflowStatus === 'completed';
-  const readyCount = DEPLOY_SERVICES.filter((svc) => deployProgress[svc]).length;
-  const hasServiceProgress = readyCount > 0;
   const etaRemaining = Math.max(0, ESTIMATED_DEPLOY_SECONDS - elapsedSeconds);
   const teardownElapsed =
     teardownStartedAt != null ? Math.floor(Date.now() / 1000) - teardownStartedAt : elapsedSeconds;
@@ -929,28 +852,13 @@ export default function DeployPanel({
           </div>
 
           <div className={styles.progressBar}>
-            {/* Workflow steps */}
-            {WORKFLOW_STEPS.map((step, i) => (
+            {DEPLOY_STEPS.map((step, i) => (
               <div key={step.activeKey} className={styles.segmentWrap} data-tooltip={step.label}>
                 <div
                   className={[
                     styles.segment,
-                    i < workflowStepIndex || hasServiceProgress ? styles.segmentDone : '',
-                    !hasServiceProgress && i === workflowStepIndex ? styles.segmentActive : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                />
-              </div>
-            ))}
-            {/* Service segments */}
-            {DEPLOY_SERVICES.map((svc) => (
-              <div key={svc} className={styles.segmentWrap} data-tooltip={svc}>
-                <div
-                  className={[
-                    styles.segment,
-                    deployProgress[svc] ? styles.segmentDone : '',
-                    hasServiceProgress && !deployProgress[svc] ? styles.segmentActive : '',
+                    i < deployStepIndex ? styles.segmentDone : '',
+                    i === deployStepIndex ? styles.segmentActive : '',
                   ]
                     .filter(Boolean)
                     .join(' ')}
@@ -960,30 +868,16 @@ export default function DeployPanel({
           </div>
 
           <ul className={styles.progressList}>
-            {WORKFLOW_STEPS.map((step, i) => {
+            {DEPLOY_STEPS.map((step, i) => {
               let cls = styles.progressItem;
-              if (i < workflowStepIndex || hasServiceProgress) cls += ` ${styles.progressItemDone}`;
-              else if (i === workflowStepIndex) cls += ` ${styles.progressItemActive}`;
+              if (i < deployStepIndex) cls += ` ${styles.progressItemDone}`;
+              else if (i === deployStepIndex) cls += ` ${styles.progressItemActive}`;
               return (
                 <li key={step.activeKey} className={cls}>
                   {step.label}
                 </li>
               );
             })}
-            {workflowRunning && (
-              <li
-                className={`${styles.progressItem} ${
-                  readyCount === DEPLOY_SERVICES.length
-                    ? styles.progressItemDone
-                    : hasServiceProgress || workflowStatus === 'completed'
-                      ? styles.progressItemActive
-                      : ''
-                }`}
-              >
-                Starting services
-                {hasServiceProgress ? `: ${readyCount}/${DEPLOY_SERVICES.length} ready` : '...'}
-              </li>
-            )}
           </ul>
 
           <div className={styles.elapsedRow}>

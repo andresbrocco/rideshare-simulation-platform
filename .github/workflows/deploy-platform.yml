@@ -296,6 +296,16 @@ jobs:
           echo "::add-mask::$API_KEY"
           echo "api_key=$API_KEY" >> "$GITHUB_OUTPUT"
 
+      - name: Register deploy run ID
+        env:
+          LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
+          API_KEY: ${{ steps.lambda-config.outputs.api_key }}
+        run: |
+          curl -sf -X POST "${LAMBDA_URL}" \
+            -H "Content-Type: application/json" \
+            -d "{\"action\":\"set-deploy-run-id\",\"api_key\":\"${API_KEY}\",\"run_id\":${{ github.run_id }}}" \
+            || echo "Warning: Failed to register deploy run ID"
+
       - name: Create Application Databases
         run: |
           echo "Creating application databases in RDS..."
@@ -407,115 +417,61 @@ jobs:
           done
 
       - name: Wait for EKS convergence
-        env:
-          LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
-          API_KEY: ${{ steps.lambda-config.outputs.api_key }}
         run: |
           NS="rideshare-prod"
 
-          report_ready() {
-            local svc="$1"
-            echo "  ✓ $svc ready"
-            curl -s -X POST "${LAMBDA_URL}" \
-              -H "Content-Type: application/json" \
-              -d "{\"action\":\"report-deploy-progress\",\"api_key\":\"${API_KEY}\",\"service\":\"${svc}\",\"ready\":true}" \
-              > /dev/null || echo "  Warning: Failed to report $svc ready"
-          }
-
-          # wait_and_mark: wait for a k8s resource, then touch a marker file.
-          # report_ready calls run sequentially after each phase to avoid
-          # read-modify-write races on the shared SSM session JSON.
-          READY_DIR=$(mktemp -d)
-          wait_and_mark() {
-            local svc="$1"; shift
-            if kubectl "$@"; then
-              touch "$READY_DIR/$svc"
-            fi
-          }
-
-          report_phase() {
-            for svc in "$@"; do
-              if [ -f "$READY_DIR/$svc" ]; then
-                report_ready "$svc"
-              else
-                echo "  ✗ $svc not ready (skipping report)"
-              fi
-            done
-          }
-
-          # When dbt_runner is not glue, auto-report glue-catalog as ready immediately
-          if [ "${{ github.event.inputs.dbt_runner }}" != "glue" ]; then
-            report_ready "glue-catalog"
-          fi
-
           echo "=== Phase 1: Infrastructure ==="
-          wait_and_mark kafka wait --for=condition=ready pod/kafka-0 -n "$NS" --timeout=300s &
-          wait_and_mark redis wait --for=condition=available deployment/redis -n "$NS" --timeout=300s &
-          wait_and_mark prometheus wait --for=condition=available deployment/prometheus -n "$NS" --timeout=300s &
-          wait_and_mark loki wait --for=condition=available deployment/loki -n "$NS" --timeout=300s &
-          wait_and_mark tempo wait --for=condition=available deployment/tempo -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=ready pod/kafka-0 -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/redis -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/prometheus -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/loki -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/tempo -n "$NS" --timeout=300s &
           kubectl wait --for=condition=available deployment/otel-collector -n "$NS" --timeout=300s 2>/dev/null &
           wait || true
-          report_phase kafka redis prometheus loki tempo
           echo "Phase 1 complete"
 
           echo "=== Phase 2: Schema/Config ==="
-          wait_and_mark schema-registry wait --for=condition=available deployment/schema-registry -n "$NS" --timeout=300s || true
-          report_phase schema-registry
+          kubectl wait --for=condition=available deployment/schema-registry -n "$NS" --timeout=300s || true
           echo "Phase 2 complete"
 
           echo "=== Phase 3: Application ==="
-          wait_and_mark stream-processor wait --for=condition=available deployment/stream-processor -n "$NS" --timeout=300s &
-          wait_and_mark osrm wait --for=condition=available deployment/osrm -n "$NS" --timeout=600s &
-          wait_and_mark simulation wait --for=condition=available deployment/simulation -n "$NS" --timeout=600s &
-          wait_and_mark bronze-ingestion wait --for=condition=available deployment/bronze-ingestion -n "$NS" --timeout=300s &
-          wait_and_mark trino wait --for=condition=available deployment/trino -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/stream-processor -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/osrm -n "$NS" --timeout=600s &
+          kubectl wait --for=condition=available deployment/simulation -n "$NS" --timeout=600s &
+          kubectl wait --for=condition=available deployment/bronze-ingestion -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/trino -n "$NS" --timeout=300s &
           wait || true
 
-          # Verify Trino is not crash-looping before reporting ready
+          # Verify Trino is not crash-looping
           TRINO_POD=$(kubectl get pods -n "$NS" -l app=trino -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
           if [ -n "$TRINO_POD" ]; then
             RESTARTS=$(kubectl get pod "$TRINO_POD" -n "$NS" -o jsonpath='{.status.containerStatuses[0].restartCount}' 2>/dev/null)
             if [ "${RESTARTS:-0}" -gt 0 ]; then
-              echo "::warning::Trino has ${RESTARTS} restart(s) — removing from ready set"
-              rm -f "$READY_DIR/trino"
+              echo "::warning::Trino has ${RESTARTS} restart(s)"
             fi
           fi
-
-          report_phase stream-processor osrm simulation bronze-ingestion trino
           echo "Phase 3 complete"
 
           echo "=== Phase 4: Data Pipeline ==="
-          wait_and_mark airflow wait --for=condition=available deployment/airflow-webserver -n "$NS" --timeout=300s || true
-          report_phase airflow
+          kubectl wait --for=condition=available deployment/airflow-webserver -n "$NS" --timeout=300s || true
           echo "Phase 4 complete"
 
           echo "=== Phase 4.5: Glue Catalog ==="
           if [ "${{ github.event.inputs.dbt_runner }}" = "glue" ]; then
-            GLUE_OK=true
             for DB in rideshare_bronze rideshare_silver rideshare_gold; do
               if ! aws glue get-database --name "$DB" > /dev/null 2>&1; then
                 echo "  Warning: Glue database $DB not accessible"
-                GLUE_OK=false
               fi
             done
-            if [ "$GLUE_OK" = "true" ]; then
-              report_ready "glue-catalog"
-            else
-              echo "  glue-catalog not ready (skipping report)"
-            fi
           fi
           echo "Phase 4.5 complete"
 
           echo "=== Phase 5: UI/Observability ==="
-          wait_and_mark grafana wait --for=condition=available deployment/grafana -n "$NS" --timeout=300s &
-          wait_and_mark performance-controller wait --for=condition=available deployment/performance-controller -n "$NS" --timeout=300s &
-          wait_and_mark control-panel wait --for=condition=available deployment/control-panel -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/grafana -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/performance-controller -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/control-panel -n "$NS" --timeout=300s &
           wait || true
-          report_phase grafana performance-controller control-panel
           echo "Phase 5 complete"
-
-          rm -rf "$READY_DIR"
 
           echo "All services converged"
 
@@ -717,3 +673,14 @@ jobs:
             --value "{\"status\":\"populated\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
             --type "String" --overwrite \
             || echo "Warning: Failed to write data-state"
+
+      - name: Complete deploy workflow
+        if: success()
+        env:
+          LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
+          API_KEY: ${{ steps.lambda-config.outputs.api_key }}
+        run: |
+          curl -sf -X POST "${LAMBDA_URL}" \
+            -H "Content-Type: application/json" \
+            -d "{\"action\":\"complete-deploy-workflow\",\"api_key\":\"${API_KEY}\"}" \
+            || echo "Warning: Failed to mark deploy workflow as complete"

@@ -205,19 +205,41 @@ export async function getTeardownStatus(): Promise<TeardownStatusResponse> {
   );
 }
 
+export interface DeployStepInfo {
+  name: string;
+  status: 'completed' | 'in_progress' | 'pending';
+}
+
+export interface DeployStatusResponse {
+  deploying: boolean;
+  run_id: number | null;
+  workflow_status: string;
+  workflow_conclusion: string | null;
+  current_step: number;
+  total_steps: number;
+  steps: DeployStepInfo[];
+}
+
+function isDeployStatusResponse(data: unknown): data is DeployStatusResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as DeployStatusResponse).deploying === 'boolean' &&
+    typeof (data as DeployStatusResponse).current_step === 'number' &&
+    typeof (data as DeployStatusResponse).total_steps === 'number' &&
+    Array.isArray((data as DeployStatusResponse).steps)
+  );
+}
+
+export async function getDeployStatus(): Promise<DeployStatusResponse> {
+  return callLambda({ action: 'deploy-status' }, isDeployStatusResponse, 'Deploy status service');
+}
+
 export async function getSessionStatus(): Promise<SessionStatusResponse> {
   return callLambda(
     { action: 'session-status' },
     isSessionStatusResponse,
     'Session status service'
-  );
-}
-
-export async function activateSession(apiKey: string): Promise<SessionAdjustResponse> {
-  return callLambda(
-    { action: 'activate-session', api_key: apiKey },
-    isSessionAdjustResponse,
-    'Session activate service'
   );
 }
 
@@ -366,24 +388,6 @@ export async function visitorLogin(email: string, password: string): Promise<Vis
   }
 
   return data;
-}
-
-export interface DeployProgressResponse {
-  services: Record<string, boolean>;
-  all_ready: boolean;
-}
-
-function isDeployProgressResponse(data: unknown): data is DeployProgressResponse {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    typeof (data as DeployProgressResponse).services === 'object' &&
-    typeof (data as DeployProgressResponse).all_ready === 'boolean'
-  );
-}
-
-export async function getDeployProgress(): Promise<DeployProgressResponse> {
-  return callLambda({ action: 'get-deploy-progress' }, isDeployProgressResponse, 'Deploy progress');
 }
 
 export type ServiceId =

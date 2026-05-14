@@ -6,6 +6,7 @@ import {
   checkDeployStatus,
   getSessionStatus,
   getTeardownStatus,
+  getDeployStatus,
   extendSession,
   shrinkSession,
   provisionVisitor,
@@ -14,6 +15,7 @@ import {
   resetData,
   LambdaServiceError,
 } from '../lambda';
+import type { DeployStatusResponse } from '../lambda';
 
 describe('Lambda Service', () => {
   beforeEach(() => {
@@ -349,6 +351,57 @@ describe('Lambda Service', () => {
         expect(error).toBeInstanceOf(LambdaServiceError);
         expect((error as LambdaServiceError).code).toBe('INVALID_RESPONSE');
       }
+    });
+  });
+
+  describe('getDeployStatus', () => {
+    it('should return deploy status when deploying', async () => {
+      const mockResponse: DeployStatusResponse = {
+        deploying: true,
+        run_id: 12345,
+        workflow_status: 'in_progress',
+        workflow_conclusion: null,
+        current_step: 2,
+        total_steps: 7,
+        steps: [
+          { name: 'Provisioning infrastructure...', status: 'completed' },
+          { name: 'Applying Terraform...', status: 'completed' },
+          { name: 'Preparing deployment...', status: 'in_progress' },
+          { name: 'Starting services...', status: 'pending' },
+          { name: 'Configuring platform...', status: 'pending' },
+          { name: 'Setting up networking...', status: 'pending' },
+          { name: 'Finalizing...', status: 'pending' },
+        ],
+      };
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await getDeployStatus();
+      expect(result.deploying).toBe(true);
+      expect(result.current_step).toBe(2);
+      expect(result.steps).toHaveLength(7);
+    });
+
+    it('should return not deploying when complete', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            deploying: false,
+            run_id: null,
+            workflow_status: 'completed',
+            workflow_conclusion: 'success',
+            current_step: 7,
+            total_steps: 7,
+            steps: [],
+          }),
+      });
+
+      const result = await getDeployStatus();
+      expect(result.deploying).toBe(false);
     });
   });
 
