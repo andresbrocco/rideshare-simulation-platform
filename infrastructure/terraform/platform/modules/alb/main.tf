@@ -264,7 +264,8 @@ resource "aws_iam_role_policy" "alb_controller" {
           "elasticloadbalancing:ModifyListenerAttributes",
           "elasticloadbalancing:AddListenerCertificates",
           "elasticloadbalancing:RemoveListenerCertificates",
-          "elasticloadbalancing:ModifyRule"
+          "elasticloadbalancing:ModifyRule",
+          "elasticloadbalancing:SetRulePriorities"
         ]
         Resource = "*"
       }
