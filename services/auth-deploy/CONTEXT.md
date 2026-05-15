@@ -34,7 +34,7 @@ AWS Lambda function that serves as the control-plane backend for the portfolio p
 ## Non-Obvious Details
 
 - **Session not deleted on teardown trigger**: When `auto-teardown` fires, it sets `tearing_down=True` but does NOT delete the SSM parameter. The session persists so the frontend can poll teardown progress. Cleanup only happens when the teardown workflow calls `complete-teardown`.
-- **Stale state auto-cleanup**: Both `session-status` and `auto-teardown` have timeout guards. A `deploying` session older than 30 minutes is deleted (assumes failed deploy). A `tearing_down` session older than 15 minutes is deleted (assumes stale flag). Both also validate against GitHub API to detect failed workflows.
+- **Stale state auto-cleanup**: Both `session-status` and `auto-teardown` have timeout guards. A `deploying` session older than 60 minutes is deleted only if GitHub API confirms the workflow is no longer running (prevents premature cleanup of slow deploys). A `tearing_down` session older than 15 minutes is deleted (assumes stale flag). Both also validate against GitHub API to detect failed workflows.
 - **Auto-teardown defer on concurrent deploy**: If a deploy workflow is in_progress when the auto-teardown fires, it reschedules itself 5 minutes later rather than tearing down over a running deploy.
 - **activate-session is idempotent**: Calling it when a deadline already exists returns the existing deadline without modification. This prevents countdown reset on double-click.
 - **CORS not set in handler**: The `get_response_headers()` docstring explicitly notes that CORS headers are omitted because Lambda Function URLs handle them — adding them in code would cause browsers to reject duplicate header values.

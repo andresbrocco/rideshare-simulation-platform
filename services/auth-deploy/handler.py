@@ -39,7 +39,7 @@ MAX_REMAINING_SECONDS = 2 * 3600  # 2 hours
 PLATFORM_COST_PER_HOUR = 0.31
 RESCHEDULE_DELAY_SECONDS = 300  # 5 min
 TEARDOWN_TIMEOUT_SECONDS = 15 * 60  # 15 min — auto-clear stale tearing_down flag
-DEPLOYING_TIMEOUT_SECONDS = 30 * 60  # 30 min — auto-clear stale deploying session
+DEPLOYING_TIMEOUT_SECONDS = 60 * 60  # 60 min — matches deploy workflow timeout-minutes
 VISITOR_MIN_REMAINING_SECONDS = 15 * 60  # guaranteed minimum when a visitor arrives
 
 SIMULATION_START_DEFAULTS: dict[str, int] = {
@@ -1442,21 +1442,10 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
 
     # Session exists but countdown not yet started (deploying)
     if not session.get("deploy_workflow_completed", False):
-        if elapsed_seconds > DEPLOYING_TIMEOUT_SECONDS:
-            # Stale deploying session — deploy likely failed or was abandoned
-            print(
-                f"Stale deploying session detected: deployed_at={deployed_at}, "
-                f"elapsed={elapsed_seconds}s > timeout={DEPLOYING_TIMEOUT_SECONDS}s — clearing"
-            )
-            delete_session()
-            print("Action session-status completed: 200")
-            return 200, {"active": False}
-
-        # GitHub API validation: if deploy workflow failed/cancelled, clean up.
-        # A successful completion is expected — the frontend will call
-        # activate-session once deploy-progress reports all_ready.
-        # We fetch recent runs and match by created_at near deployed_at to avoid
-        # confusing deploy-frontend runs with the deploy-platform we triggered.
+        # GitHub API validation first: check actual workflow state before
+        # applying time-based timeout. This prevents clearing sessions for
+        # deploys that are still running but exceed the timeout threshold.
+        workflow_still_running = False
         try:
             github_pat = get_secret(SECRET_GITHUB_PAT)
             path = f"/repos/{GITHUB_REPO}/actions/workflows/{GITHUB_WORKFLOW}/runs?per_page=5"
@@ -1474,7 +1463,6 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
                         continue
                     if created_ts < cutoff:
                         break  # older than session — stop searching
-                    # Check if this run has a deploy-platform job (not deploy-frontend)
                     conclusion = run.get("conclusion", "")
                     status = run.get("status", "")
                     display_title = run.get("display_title", "")
@@ -1488,9 +1476,21 @@ def handle_session_status() -> tuple[int, dict[str, Any]]:
                         print("Action session-status completed: 200")
                         return 200, {"active": False}
                     if status in ("in_progress", "queued"):
+                        workflow_still_running = True
                         break  # found our running deploy — stop
         except Exception as e:
             print(f"Warning: GitHub API check failed for deploy: {e}")
+
+        # Time-based timeout: only apply if GitHub API did NOT confirm
+        # the workflow is still running (fallback for API failures).
+        if elapsed_seconds > DEPLOYING_TIMEOUT_SECONDS and not workflow_still_running:
+            print(
+                f"Stale deploying session detected: deployed_at={deployed_at}, "
+                f"elapsed={elapsed_seconds}s > timeout={DEPLOYING_TIMEOUT_SECONDS}s — clearing"
+            )
+            delete_session()
+            print("Action session-status completed: 200")
+            return 200, {"active": False}
 
         print("Action session-status completed: 200")
         return 200, {

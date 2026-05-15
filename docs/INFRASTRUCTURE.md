@@ -439,7 +439,7 @@ Session max duration: 2 hours, extendable/shrinkable in 15-minute increments.
 
 Actions callable without an API key (`NO_AUTH_ACTIONS`): `session-status`, `auto-teardown`, `service-health`, `teardown-status`, `get-deploy-progress`, `provision-visitor`, `extend-session`, `shrink-session`. This allows visitor self-registration and frontend status polling to work without credentials.
 
-Stale session guards: a `deploying` session older than 30 minutes is auto-deleted (assumes failed deploy); a `tearing_down` session older than 15 minutes is auto-deleted (assumes stale flag).
+Stale session guards: a `deploying` session older than 60 minutes is auto-deleted only if GitHub API confirms the workflow is not running; a `tearing_down` session older than 15 minutes is auto-deleted (assumes stale flag).
 
 ### Estimated Costs
 

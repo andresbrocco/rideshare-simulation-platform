@@ -133,7 +133,7 @@ inactive (SSM parameter deleted)
 
 **Session step:** 15 minutes per extend/shrink increment.
 **Maximum session:** 2 hours remaining.
-**Stale deploying timeout:** 30 minutes (auto-deleted if no activation).
+**Stale deploying timeout:** 60 minutes (auto-deleted only if GitHub API confirms workflow is not running).
 **Stale tearing_down timeout:** 15 minutes (auto-deleted if teardown workflow finishes).
 
 ### Visitor Provisioning (Two-Phase)
@@ -274,7 +274,7 @@ An SSM session parameter exists from a previous run. Check if the session is sta
 aws ssm get-parameter --name /rideshare/session/deadline --profile rideshare --query Parameter.Value --output text
 ```
 
-If the `deployed_at` timestamp is old (>30 min for deploying, >15 min for tearing_down), `session-status` will auto-clear it on next call. Otherwise, delete manually (see above).
+If the `deployed_at` timestamp is old (>60 min for deploying, >15 min for tearing_down), `session-status` will auto-clear it on next call. Otherwise, delete manually (see above).
 
 ### Lambda returns 500 on secret retrieval
 

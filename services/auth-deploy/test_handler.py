@@ -469,8 +469,9 @@ class TestHandleSessionStatus:
             patch("handler.get_session", return_value=session),
             patch("handler.time") as mock_time,
             patch("handler.delete_session") as mock_delete,
+            patch("handler.get_secret", side_effect=Exception("no creds")),
         ):
-            mock_time.time.return_value = 1000000 + 30 * 60 + 1  # just past 30 min timeout
+            mock_time.time.return_value = 1000000 + 60 * 60 + 1  # just past 60 min timeout
             status, body = handle_session_status()
         assert status == 200
         assert body == {"active": False}
