@@ -2,7 +2,7 @@
 # Mirrors GitHub Actions workflows for local execution
 # IMPORTANT: This file uses TABS for indentation, not spaces
 
-.PHONY: ci lint test build help clean venvs install-deps lint-python lint-frontend lint-terraform test-unit test-integration test-fast test-api-contract test-coverage build-frontend diagrams diagrams-styles diagrams-check
+.PHONY: ci lint test build help clean venvs install-deps check-tools lint-python lint-frontend lint-terraform test-unit test-integration test-fast test-api-contract test-coverage build-frontend diagrams diagrams-styles diagrams-check
 
 # Default target
 .DEFAULT_GOAL := help
@@ -73,7 +73,22 @@ venvs:	## Create virtual environments and install Python dependencies
 
 ##@ Linting
 
-lint-python:	## Run Python linting and type checking via pre-commit
+REQUIRED_TOOLS := shellcheck terraform tflint docker
+
+check-tools:	## Verify required system tools are installed
+	@missing=""; \
+	for tool in $(REQUIRED_TOOLS); do \
+		if ! command -v $$tool >/dev/null 2>&1; then \
+			missing="$$missing $$tool"; \
+		fi; \
+	done; \
+	if [ -n "$$missing" ]; then \
+		echo "Missing required tools:$$missing"; \
+		echo "Install via: brew install$$missing"; \
+		exit 1; \
+	fi
+
+lint-python: check-tools	## Run Python linting and type checking via pre-commit
 	@echo "Running pre-commit on all files..."
 	$(PRE_COMMIT) run --all-files
 

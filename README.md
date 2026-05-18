@@ -52,6 +52,7 @@ Feedback:       Performance Controller (PID speed adjustment via Prometheus head
 - **Git LFS** (for OSRM map data)
 - **Python 3.13** with a virtual environment at `./venv/` (for running tests and scripts outside Docker)
 - **Node.js 22+** (for frontend development only)
+- **shellcheck**, **terraform**, and **tflint** (for full CI-parity linting via `make lint`)
 
 ### Setup
 

@@ -198,17 +198,17 @@ jobs:
         if: steps.check-cluster.outputs.cluster_api_available != 'true'
         run: |
           echo "Cluster not reachable — deleting orphaned Kafka EBS volumes via AWS API"
-          VOLUME_IDS=$(aws ec2 describe-volumes \
+          readarray -t VOLUME_IDS < <(aws ec2 describe-volumes \
             --filters \
               "Name=tag:kubernetes.io/cluster/rideshare-eks,Values=owned" \
               "Name=status,Values=available" \
               "Name=tag:kubernetes.io/created-for/pvc/name,Values=kafka-data-kafka-0" \
-            --query 'Volumes[].VolumeId' --output text)
+            --query 'Volumes[].VolumeId' --output text | tr '\t' '\n')
 
-          if [ -z "$VOLUME_IDS" ] || [ "$VOLUME_IDS" = "None" ]; then
+          if [ ${#VOLUME_IDS[@]} -eq 0 ]; then
             echo "No orphaned Kafka EBS volumes found"
           else
-            for VOL_ID in $VOLUME_IDS; do
+            for VOL_ID in "${VOLUME_IDS[@]}"; do
               echo "Deleting volume ${VOL_ID}..."
               aws ec2 delete-volume --volume-id "$VOL_ID"
               echo "Deleted ${VOL_ID}"
@@ -233,10 +233,10 @@ jobs:
         run: |
           for DB in rideshare_bronze rideshare_silver rideshare_gold; do
             echo "Deleting tables from ${DB}..."
-            TABLES=$(aws glue get-tables --database-name "$DB" \
-              --query 'TableList[].Name' --output text)
-            if [ -n "$TABLES" ]; then
-              for TABLE in $TABLES; do
+            readarray -t TABLES < <(aws glue get-tables --database-name "$DB" \
+              --query 'TableList[].Name' --output text | tr '\t' '\n')
+            if [ ${#TABLES[@]} -gt 0 ]; then
+              for TABLE in "${TABLES[@]}"; do
                 aws glue delete-table --database-name "$DB" --name "$TABLE"
                 echo "  Deleted ${DB}.${TABLE}"
               done
