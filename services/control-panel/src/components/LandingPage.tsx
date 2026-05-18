@@ -541,6 +541,13 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
       iconStyle: { stroke: 'currentColor', strokeWidth: 0.6 },
     },
     {
+      name: 'dbt Docs',
+      url: isLocal ? 'http://localhost:8087' : 'https://dbt.ridesharing.portfolio.andresbrocco.com',
+      desc: 'Model DAG, lineage graph, and column-level documentation',
+      icon: DbtIcon,
+      iconColor: SELF_HOSTED_COLOR,
+    },
+    {
       name: 'Grafana',
       url: isLocal
         ? 'http://localhost:3001'
@@ -783,6 +790,7 @@ import type { ServiceHealthMap } from '../services/lambda';
 const SERVICE_NAME_TO_ID: Record<string, keyof ServiceHealthMap> = {
   'Control Panel': 'control_panel',
   Airflow: 'airflow',
+  'dbt Docs': 'dbt_docs',
   Grafana: 'grafana',
 };
 

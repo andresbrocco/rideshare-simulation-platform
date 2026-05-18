@@ -394,6 +394,7 @@ export type ServiceId =
   | 'simulation_api'
   | 'grafana'
   | 'airflow'
+  | 'dbt_docs'
   | 'trino'
   | 'prometheus'
   | 'control_panel';
@@ -404,6 +405,7 @@ export const ALL_SERVICES_DOWN: ServiceHealthMap = {
   simulation_api: false,
   grafana: false,
   airflow: false,
+  dbt_docs: false,
   trino: false,
   prometheus: false,
   control_panel: false,
@@ -433,6 +435,7 @@ export async function getServiceHealth(): Promise<ServiceHealthMap> {
     simulation_api: sim,
     grafana: !!response.services['grafana'],
     airflow: !!response.services['airflow'],
+    dbt_docs: !!response.services['dbt_docs'],
     trino: !!response.services['trino'],
     prometheus: !!response.services['prometheus'],
     control_panel: sim,

@@ -66,6 +66,10 @@ SERVICE_INFO: dict[str, dict[str, str]] = {
         "url": "https://airflow.ridesharing.portfolio.andresbrocco.com/auth/login/",
         "desc": "4 DAGs orchestrating Bronze → Silver → Gold transformations",
     },
+    "dbt Docs": {
+        "url": "https://dbt.ridesharing.portfolio.andresbrocco.com",
+        "desc": "Model DAG, lineage graph, and column-level documentation",
+    },
     "Grafana": {
         "url": "https://grafana.ridesharing.portfolio.andresbrocco.com",
         "desc": "Multi-datasource dashboards — metrics, logs, traces, and BI analytics",
@@ -85,6 +89,7 @@ SERVICE_HEALTH_ENDPOINTS: dict[str, str] = {
     "airflow": "https://airflow.ridesharing.portfolio.andresbrocco.com/api/v2/monitor/health",
     "trino": "https://trino.ridesharing.portfolio.andresbrocco.com/v1/info",
     "prometheus": "https://prometheus.ridesharing.portfolio.andresbrocco.com/-/healthy",
+    "dbt_docs": "https://dbt.ridesharing.portfolio.andresbrocco.com/",
 }
 HEALTH_CHECK_TIMEOUT = 5  # seconds
 
@@ -636,6 +641,7 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         "Control Panel": "control-panel.png",
         "Grafana": "grafana.png",
         "Airflow": "airflow.png",
+        "dbt Docs": "dbt.png",
         "Trino": "trino.png",
         "MinIO": "minio.png",
         "Simulation API": "simulation-api.png",

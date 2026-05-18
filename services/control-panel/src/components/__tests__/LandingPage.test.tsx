@@ -303,7 +303,7 @@ describe('Service cards with icons', () => {
   it('renders six service card icons', () => {
     renderLandingPage();
     const icons = document.querySelectorAll('.landing-service-icon');
-    expect(icons).toHaveLength(3);
+    expect(icons).toHaveLength(4);
   });
 });
 
