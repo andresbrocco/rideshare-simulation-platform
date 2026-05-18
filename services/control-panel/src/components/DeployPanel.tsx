@@ -73,6 +73,7 @@ const ALL_SERVICES_UP: ServiceHealthMap = {
   simulation_api: true,
   grafana: true,
   airflow: true,
+  dbt_docs: true,
   trino: true,
   prometheus: true,
   control_panel: true,
