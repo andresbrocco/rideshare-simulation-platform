@@ -619,7 +619,7 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f"     the star schema, and surfacing quality alerts\n\n"
         f"Note: Your credentials will work once the platform is running. If the platform is currently "
         f'offline, hit "Deploy" on the landing page — services typically start '
-        f"within about 20 minutes.\n\n"
+        f"within about 30 minutes.\n\n"
         f"If you have questions or just want to chat about the architecture, "
         f"hit reply — it goes straight to my inbox.\n\n"
         f"Cheers,\n"
@@ -725,7 +725,7 @@ def _build_welcome_email(email: str, name: str, password: str) -> tuple[str, str
         f'<tr><td style="padding:12px 16px;font-family:{font};font-size:13px;color:#c5cac8;">'
         f"<strong>Note:</strong> Your credentials will work once the platform is running. If the platform is currently "
         f'offline, hit "Deploy" on the landing page — services typically start '
-        f"within about 20 minutes."
+        f"within about 30 minutes."
         f"</td></tr></table></td></tr>"
         # Reply invitation
         f'<tr><td style="padding:0 32px 24px;font-family:{font};font-size:14px;color:#c5cac8;">'

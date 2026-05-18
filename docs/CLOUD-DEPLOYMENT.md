@@ -313,7 +313,7 @@ open https://ridesharing.portfolio.andresbrocco.com
 
 **Purpose:** Deploy on-demand infrastructure (~$0.31/hr): EKS cluster, RDS, ALB.
 
-**Duration:** ~15-20 minutes (EKS creation: ~10 min, service startup: ~5 min)
+**Duration:** ~30 minutes (EKS creation: ~10 min, service startup: ~20 min)
 
 ### GitHub Actions (Recommended)
 

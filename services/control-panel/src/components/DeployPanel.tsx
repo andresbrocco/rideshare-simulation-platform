@@ -44,7 +44,7 @@ const DEPLOY_STEPS = [
   { label: 'Finalizing...', activeKey: 'finalizing' },
 ] as const;
 
-const ESTIMATED_DEPLOY_SECONDS = 1200; // 20 min (full convergence)
+const ESTIMATED_DEPLOY_SECONDS = 1800; // 30 min (full convergence)
 
 const TEARDOWN_STEPS = [
   { label: 'Saving simulation checkpoint...', activeKey: 'saving_checkpoint' },
@@ -822,7 +822,7 @@ export default function DeployPanel({
           </button>
           <div className={styles.warnings}>
             <span className={styles.warning}>~$0.31/hour</span>
-            <span className={styles.warning}>~20 min deploy time</span>
+            <span className={styles.warning}>~30 min deploy time</span>
           </div>
           <ConfirmModal
             isOpen={showResetModal}
