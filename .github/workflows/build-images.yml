@@ -21,6 +21,7 @@ on:
           - performance-controller
           - osrm
           - otel-collector
+          - dbt-docs
 
 permissions:
   id-token: write
@@ -39,6 +40,7 @@ jobs:
       performance-controller: ${{ steps.filter.outputs.performance-controller }}
       osrm: ${{ steps.filter.outputs.osrm }}
       otel-collector: ${{ steps.filter.outputs.otel-collector }}
+      dbt-docs: ${{ steps.filter.outputs.dbt-docs }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -65,6 +67,12 @@ jobs:
               - 'services/osrm/**'
             otel-collector:
               - 'services/otel-collector/**'
+            dbt-docs:
+              - 'services/dbt-docs/**'
+              - 'tools/dbt/models/**'
+              - 'tools/dbt/macros/**'
+              - 'tools/dbt/dbt_project.yml'
+              - 'tools/dbt/packages.yml'
 
   generate-matrix:
     needs: [detect-changes]
@@ -91,7 +99,8 @@ jobs:
             {"service":"hive-metastore"},
             {"service":"performance-controller"},
             {"service":"osrm"},
-            {"service":"otel-collector"}
+            {"service":"otel-collector"},
+            {"service":"dbt-docs"}
           ]
           EOF
               )
@@ -128,6 +137,9 @@ jobs:
             fi
             if [ "${{ needs.detect-changes.outputs.otel-collector }}" = "true" ]; then
               ITEMS+=('{"service":"otel-collector"}')
+            fi
+            if [ "${{ needs.detect-changes.outputs.dbt-docs }}" = "true" ]; then
+              ITEMS+=('{"service":"dbt-docs"}')
             fi
 
             if [ ${#ITEMS[@]} -gt 0 ]; then
@@ -232,6 +244,11 @@ jobs:
             cp -r design services/control-panel/design
           fi
 
+          # dbt-docs generates docs from the dbt project at build time
+          if [ "${{ matrix.service }}" = "dbt-docs" ]; then
+            cp -r tools/dbt services/dbt-docs/dbt-project
+          fi
+
           CACHE_REPO="$ECR_REGISTRY/$ECR_REPOSITORY"
 
           BUILD_ARGS=(
@@ -264,6 +281,10 @@ jobs:
 
           if [ "${{ matrix.service }}" = "control-panel" ]; then
             rm -rf services/control-panel/design
+          fi
+
+          if [ "${{ matrix.service }}" = "dbt-docs" ]; then
+            rm -rf services/dbt-docs/dbt-project
           fi
 
       - name: Output image URIs

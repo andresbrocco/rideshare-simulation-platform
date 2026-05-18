@@ -27,6 +27,7 @@ resources:
   - ingress-trino.yaml
   - ingress-prometheus.yaml
   - ingress-control-panel.yaml
+  - ingress-dbt-docs.yaml
 
 # Generate ConfigMaps from source files so ArgoCD manages them
 configMapGenerator:
@@ -74,13 +75,16 @@ images:
   - name: otel/opentelemetry-collector-contrib
     newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/otel-collector
     newTag: <image-tag>
+  - name: rideshare-dbt-docs
+    newName: <account-id>.dkr.ecr.us-east-1.amazonaws.com/rideshare/dbt-docs
+    newTag: <image-tag>
 
 patches:
   # Override imagePullPolicy from Never (local dev) to IfNotPresent (SHA tags are immutable)
   - patch: '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
     target:
       kind: Deployment
-      labelSelector: app in (simulation,stream-processor,performance-controller,control-panel,bronze-ingestion,osrm,otel-collector)
+      labelSelector: app in (simulation,stream-processor,performance-controller,control-panel,bronze-ingestion,osrm,otel-collector,dbt-docs)
   - patch: '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
     target:
       kind: StatefulSet

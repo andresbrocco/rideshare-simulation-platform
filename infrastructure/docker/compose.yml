@@ -1008,6 +1008,26 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  dbt-docs:
+    image: nginx:alpine
+    container_name: rideshare-dbt-docs
+    mem_limit: 64m
+    profiles:
+      - monitoring
+    ports:
+      - "8087:80"
+    volumes:
+      - ../../tools/dbt/target:/usr/share/nginx/html:ro
+    networks:
+      - rideshare-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
   loki:
     build:
       context: ../../services/loki

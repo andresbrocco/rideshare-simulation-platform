@@ -19,6 +19,7 @@ resources:
   # Data Pipeline
   - ../../manifests/bronze-ingestion.yaml
   - ../../manifests/bronze-init.yaml
+  - ../../manifests/dbt-docs.yaml
 
   # Trino catalog ConfigMaps (one per runner)
   - ../../manifests/trino.yaml

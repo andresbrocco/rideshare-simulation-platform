@@ -156,7 +156,7 @@ jobs:
         run: |
           IMAGE_TAG="${{ github.sha }}"
 
-          SERVICES=(simulation stream-processor control-panel bronze-ingestion hive-metastore performance-controller osrm otel-collector)
+          SERVICES=(simulation stream-processor control-panel bronze-ingestion hive-metastore performance-controller osrm otel-collector dbt-docs)
 
           for SERVICE in "${SERVICES[@]}"; do
             REPO="rideshare/${SERVICE}"
@@ -470,6 +470,7 @@ jobs:
           kubectl wait --for=condition=available deployment/grafana -n "$NS" --timeout=300s &
           kubectl wait --for=condition=available deployment/performance-controller -n "$NS" --timeout=300s &
           kubectl wait --for=condition=available deployment/control-panel -n "$NS" --timeout=300s &
+          kubectl wait --for=condition=available deployment/dbt-docs -n "$NS" --timeout=300s &
           wait || true
           echo "Phase 5 complete"
 
@@ -660,6 +661,7 @@ jobs:
           echo "Airflow:      https://airflow.ridesharing.portfolio.andresbrocco.com"
           echo "Trino:        https://trino.ridesharing.portfolio.andresbrocco.com"
           echo "Prometheus:   https://prometheus.ridesharing.portfolio.andresbrocco.com"
+          echo "dbt Docs:     https://dbt.ridesharing.portfolio.andresbrocco.com"
           echo ""
           echo "Estimated cost: ~$0.31/hour while running"
           echo "Remember to run teardown workflow when demo is complete"

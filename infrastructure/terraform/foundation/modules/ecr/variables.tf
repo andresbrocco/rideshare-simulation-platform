@@ -15,7 +15,8 @@ variable "repository_names" {
     "hive-metastore",
     "osrm",
     "otel-collector",
-    "performance-controller"
+    "performance-controller",
+    "dbt-docs"
   ]
 }
 

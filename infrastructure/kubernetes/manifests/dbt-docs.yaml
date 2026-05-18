@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dbt-docs
+  labels:
+    app: dbt-docs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dbt-docs
+  template:
+    metadata:
+      labels:
+        app: dbt-docs
+    spec:
+      containers:
+      - name: dbt-docs
+        image: rideshare-dbt-docs:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          limits:
+            memory: "64Mi"
+          requests:
+            memory: "32Mi"
+            cpu: "50m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dbt-docs
+  labels:
+    app: dbt-docs
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    name: http
+  selector:
+    app: dbt-docs
