@@ -10,7 +10,7 @@ permissions:
 jobs:
   teardown-platform:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -67,7 +67,7 @@ jobs:
             exit 0
           fi
 
-          # 3. Check simulation status
+          # 2. Check simulation status
           SIM_STATUS=$(curl -sf --max-time 10 -H "X-API-Key: $API_KEY" "$SIM_API/simulation/status" 2>/dev/null) || { echo "Warning: Simulation API unreachable, skipping graceful shutdown"; exit 0; }
           STATE=$(echo "$SIM_STATUS" | jq -r '.state // empty')
           echo "Current simulation state: $STATE"
@@ -76,37 +76,36 @@ jobs:
             exit 0
           fi
 
-          # 4. Pause simulation (enters DRAINING)
+          # 3. Pause simulation (enters DRAINING)
           curl -sf --max-time 10 -X POST -H "X-API-Key: $API_KEY" "$SIM_API/simulation/pause" || { echo "Warning: Failed to pause simulation"; exit 0; }
           echo "Pause requested"
 
-          # 5. Speed up if slow
-          SPEED=$(echo "$SIM_STATUS" | jq -r '.speed_multiplier // 1')
-          if [ "$(echo "$SPEED < 16" | bc -l)" = "1" ]; then
+          # 4. Ensure PID controller is on (only enable if currently off)
+          CTRL_STATUS=$(curl -sf --max-time 10 -H "X-API-Key: $API_KEY" "$SIM_API/controller/status" 2>/dev/null) || echo "Warning: Could not fetch controller status"
+          CTRL_MODE=$(echo "$CTRL_STATUS" | jq -r '.mode // empty' 2>/dev/null)
+          echo "Controller mode: $CTRL_MODE"
+          if [ "$CTRL_MODE" = "off" ]; then
             curl -sf --max-time 10 -X PUT -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
-              -d '{"multiplier": 16}' "$SIM_API/simulation/speed" || echo "Warning: Failed to set speed"
+              -d '{"mode": "on"}' "$SIM_API/controller/mode" || echo "Warning: Failed to enable controller"
+            echo "Controller enabled"
           fi
 
-          # 6. Enable PID controller
-          curl -sf --max-time 10 -X PUT -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
-            -d '{"mode": "on"}' "$SIM_API/controller/mode" || echo "Warning: Failed to enable controller"
-
-          # 7. Poll until paused (5 min timeout)
+          # 5. Poll until paused (~50 min timeout)
           ELAPSED=0
-          while [ $ELAPSED -lt 300 ]; do
+          while [ $ELAPSED -lt 3000 ]; do
             sleep 10
             ELAPSED=$((ELAPSED + 10))
             POLL=$(curl -sf --max-time 10 -H "X-API-Key: $API_KEY" "$SIM_API/simulation/status" 2>/dev/null) || { echo "Warning: Poll failed at ${ELAPSED}s"; continue; }
             POLL_STATE=$(echo "$POLL" | jq -r '.state // empty')
             POLL_SPEED=$(echo "$POLL" | jq -r '.speed_multiplier // empty')
-            POLL_TRIPS=$(echo "$POLL" | jq -r '.active_trips // empty')
+            POLL_TRIPS=$(echo "$POLL" | jq -r '.active_trips_count // empty')
             echo "  [${ELAPSED}s] state=$POLL_STATE speed=$POLL_SPEED active_trips=$POLL_TRIPS"
             if [ "$POLL_STATE" = "paused" ] || [ "$POLL_STATE" = "stopped" ]; then
               echo "Simulation gracefully stopped (state=$POLL_STATE)"
               exit 0
             fi
           done
-          echo "Warning: Timed out waiting for simulation to pause (300s), continuing teardown"
+          echo "Warning: Timed out waiting for simulation to pause (3000s), continuing teardown"
           exit 0
 
       - name: Delete Route 53 Wildcard Record
