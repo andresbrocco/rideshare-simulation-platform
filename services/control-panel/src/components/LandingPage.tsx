@@ -39,6 +39,8 @@ import {
 } from '@icons-pack/react-simple-icons';
 import DeltaLakeIcon from '../../public/icons/tech/delta-lake.svg?react';
 import DbtIcon from '../../public/icons/tech/dbt.svg?react';
+import AirflowColoredIcon from '../../public/icons/tech/airflow-colored.svg?react';
+import GrafanaColoredIcon from '../../public/icons/tech/grafana-colored.svg?react';
 import GreatExpectationsIcon from '../../public/icons/tech/great-expectations.svg?react';
 import SimpyIcon from '../../public/icons/tech/simpy.svg?react';
 import LokiIcon from '../../public/icons/tech/loki.svg?react';
@@ -536,16 +538,15 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
         ? 'http://localhost:8082/auth/login/'
         : 'https://airflow.ridesharing.portfolio.andresbrocco.com/',
       desc: '4 DAGs orchestrating Bronze → Silver → Gold transformations',
-      icon: SiApacheairflow,
+      icon: AirflowColoredIcon,
       iconColor: AIRFLOW_COLOR,
-      iconStyle: { stroke: 'currentColor', strokeWidth: 0.6 },
     },
     {
       name: 'dbt Docs',
       url: isLocal ? 'http://localhost:8087' : 'https://dbt.ridesharing.portfolio.andresbrocco.com',
       desc: 'Model DAG, lineage graph, and column-level documentation',
       icon: DbtIcon,
-      iconColor: SELF_HOSTED_COLOR,
+      iconColor: '#FF694A',
     },
     {
       name: 'Grafana',
@@ -553,7 +554,7 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
         ? 'http://localhost:3001'
         : 'https://grafana.ridesharing.portfolio.andresbrocco.com',
       desc: 'Multi-datasource dashboards — metrics, logs, traces, and BI analytics',
-      icon: SiGrafana,
+      icon: GrafanaColoredIcon,
       iconColor: `#${SiGrafanaHex}`,
     },
   ];
