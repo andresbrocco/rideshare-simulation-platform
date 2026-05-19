@@ -14,15 +14,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v4
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
         with:
           terraform_version: 1.14.3
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
           aws-region: us-east-1
@@ -44,9 +44,16 @@ jobs:
 
       - name: Register teardown run ID
         run: |
-          curl -sf -X POST "${{ steps.lambda-config.outputs.url }}" \
+          LAMBDA_URL="${{ steps.lambda-config.outputs.url }}"
+          API_KEY="${{ steps.lambda-config.outputs.api_key }}"
+          PAYLOAD=$(jq -n \
+            --arg action "set-teardown-run-id" \
+            --arg api_key "$API_KEY" \
+            --argjson run_id ${{ github.run_id }} \
+            '{action: $action, api_key: $api_key, run_id: $run_id}')
+          curl -sf -X POST "$LAMBDA_URL" \
             -H "Content-Type: application/json" \
-            -d '{"action":"set-teardown-run-id","api_key":"${{ steps.lambda-config.outputs.api_key }}","run_id":${{ github.run_id }}}' \
+            -d "$PAYLOAD" \
             || echo "Warning: Failed to register run ID"
 
       - name: Terraform Init (Platform)
@@ -115,7 +122,7 @@ jobs:
             --query 'HostedZones[0].Id' \
             --output text | sed 's|/hostedzone/||')
 
-          if [ -z "$ZONE_ID" ]; then
+          if [ -z "$ZONE_ID" ] || [ "$ZONE_ID" = "None" ]; then
             echo "Warning: Hosted zone not found, skipping DNS cleanup"
             exit 0
           fi
@@ -208,6 +215,7 @@ jobs:
           # 5. Wait for ALB ENIs to be released (up to 3 min)
           echo "Waiting for ALB ENIs to release..."
           for i in $(seq 1 18); do
+            sleep 10
             ENIS=$(aws ec2 describe-network-interfaces \
               --filters "Name=description,Values=*k8s-rideshare*" \
               --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text 2>/dev/null)
@@ -215,11 +223,10 @@ jobs:
               echo "All ALB ENIs released"
               break
             fi
-            echo "  [${i}0s] ENIs still present: $ENIS"
+            echo "  [$((i * 10))s] ENIs still present: $ENIS"
             if [ "$i" -eq 18 ]; then
               echo "Warning: ENIs not released after 3 minutes, continuing"
             fi
-            sleep 10
           done
 
           # 6. Release unassociated EIPs without a Name tag (ALB controller artifacts)
@@ -275,7 +282,7 @@ jobs:
             --query 'HostedZones[0].Id' \
             --output text | sed 's|/hostedzone/||')
 
-          if [ -z "$ZONE_ID" ]; then
+          if [ -z "$ZONE_ID" ] || [ "$ZONE_ID" = "None" ]; then
             echo "Warning: Hosted zone not found"
             exit 0
           fi
@@ -316,16 +323,16 @@ jobs:
           echo ""
           echo "=== ECR Repositories ==="
           ECR_REPOS=(rideshare/simulation rideshare/stream-processor rideshare/control-panel rideshare/bronze-ingestion rideshare/hive-metastore rideshare/osrm rideshare/otel-collector rideshare/performance-controller)
-          ECR_RESULT=$(aws ecr describe-repositories \
-            --repository-names "${ECR_REPOS[@]}" \
-            --query 'repositories[*].repositoryName' --output json 2>/dev/null) \
-            || ECR_RESULT="[]"
-          ECR_COUNT=$(echo "$ECR_RESULT" | jq 'length')
-          echo "  $ECR_COUNT / 8 ECR repositories preserved"
-          if [ "$ECR_COUNT" -lt 8 ]; then
-            echo "  ERROR: Expected 8 ECR repos, found $ECR_COUNT"
-            ERRORS=$((ERRORS + 1))
-          fi
+          ECR_FOUND=0
+          for REPO in "${ECR_REPOS[@]}"; do
+            if aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1; then
+              ECR_FOUND=$((ECR_FOUND + 1))
+            else
+              echo "  ERROR: ECR repo missing: $REPO"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+          echo "  $ECR_FOUND / 8 ECR repositories preserved"
 
           # Secrets (per-secret describe — needs secretsmanager:DescribeSecret, already granted)
           echo ""
@@ -369,8 +376,8 @@ jobs:
           echo "================================"
           echo ""
           echo "DESTROYED:"
-          echo "  - EKS Cluster (rideshare-prod)"
-          echo "  - EC2 Instances (3x t3.xlarge worker nodes)"
+          echo "  - EKS Cluster (rideshare-eks)"
+          echo "  - EC2 Instances (1x t3.xlarge worker node)"
           echo "  - RDS PostgreSQL (t4g.micro)"
           echo "  - ALB (Application Load Balancer)"
           echo "  - EBS Volumes (Kafka, Prometheus data)"
@@ -388,7 +395,7 @@ jobs:
           echo "  https://ridesharing.portfolio.andresbrocco.com"
           echo "  (Offline mode - API unavailable)"
           echo ""
-          echo "Cost reduced to foundation-only: ~$8/month"
+          echo "Cost reduced to foundation-only: ~\$8/month"
           echo "================================"
 
       - name: Alert on teardown failure

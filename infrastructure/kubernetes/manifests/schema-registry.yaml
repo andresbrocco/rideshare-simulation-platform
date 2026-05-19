@@ -56,14 +56,14 @@ spec:
         livenessProbe:
           tcpSocket:
             port: 8081
-          initialDelaySeconds: 60
+          initialDelaySeconds: 15
           periodSeconds: 10
           timeoutSeconds: 10
           failureThreshold: 12
         readinessProbe:
           tcpSocket:
             port: 8081
-          initialDelaySeconds: 60
+          initialDelaySeconds: 15
           periodSeconds: 10
           timeoutSeconds: 10
           failureThreshold: 12

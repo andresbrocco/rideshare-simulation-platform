@@ -1,10 +1,10 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
 import { LandingPage } from './components/LandingPage';
 import { ALL_SERVICES_DOWN } from './services/lambda';
 import type { ServiceHealthMap } from './services/lambda';
 import LoginDialog from './components/LoginDialog';
 import VisitorAccessDialog from './components/VisitorAccessDialog';
-import Map from './components/Map';
+const Map = lazy(() => import('./components/Map'));
 import MapErrorBoundary from './components/MapErrorBoundary';
 import ControlPanel from './components/ControlPanel';
 import LayerControls from './components/LayerControls';
@@ -348,7 +348,11 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
       ) : showLaunchDemo ? (
         <>
           <MapErrorBoundary>
-            <Map onZoomChange={setZoom} />
+            <Suspense
+              fallback={<div style={{ width: '100%', height: '100%', background: '#1a1a2e' }} />}
+            >
+              <Map onZoomChange={setZoom} />
+            </Suspense>
           </MapErrorBoundary>
           <UserNav
             email={sessionEmail}
@@ -367,15 +371,19 @@ function OnlineApp({ apiAvailable }: { apiAvailable: boolean }) {
       ) : (
         <>
           <MapErrorBoundary>
-            <Map
-              layers={layers}
-              onEntityClick={handleEntityClick}
-              placementMode={placementMode}
-              onPlacement={handlePlacement}
-              destinationMode={!!destinationSelection}
-              onDestinationSelect={handleDestinationSelect}
-              onZoomChange={setZoom}
-            />
+            <Suspense
+              fallback={<div style={{ width: '100%', height: '100%', background: '#1a1a2e' }} />}
+            >
+              <Map
+                layers={layers}
+                onEntityClick={handleEntityClick}
+                placementMode={placementMode}
+                onPlacement={handlePlacement}
+                destinationMode={!!destinationSelection}
+                onDestinationSelect={handleDestinationSelect}
+                onZoomChange={setZoom}
+              />
+            </Suspense>
           </MapErrorBoundary>
           <AgentPlacement mode={placementMode} onCancel={() => setPlacementMode(null)} />
           {destinationSelection && (

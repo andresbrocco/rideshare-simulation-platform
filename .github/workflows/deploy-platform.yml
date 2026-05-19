@@ -11,6 +11,11 @@ on:
         options:
           - duckdb
           - glue
+      verify_foundation:
+        description: 'Run foundation Terraform state verification'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -23,15 +28,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v4
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
         with:
           terraform_version: 1.14.3
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
           aws-region: us-east-1
@@ -59,6 +64,7 @@ jobs:
             --quiet
 
       - name: Verify Foundation State
+        if: inputs.verify_foundation
         working-directory: infrastructure/terraform/foundation
         env:
           TF_VAR_owner_reply_to_email: ${{ secrets.OWNER_REPLY_TO_EMAIL }}
@@ -80,35 +86,52 @@ jobs:
 
       - name: Reconcile Terraform State
         working-directory: infrastructure/terraform/platform
+        env:
+          CLUSTER_NAME: rideshare-eks
         run: |
-          echo "Importing orphaned resources into Terraform state (safe to fail)..."
+          echo "Importing orphaned resources into Terraform state (idempotent)..."
+
+          import_if_missing() {
+            local addr="$1"
+            local id="$2"
+            if terraform state list 2>/dev/null | grep -qF "$addr"; then
+              echo "Already in state: $addr"
+              return 0
+            fi
+            echo "Importing: $addr"
+            if ! terraform import -input=false "$addr" "$id"; then
+              echo "::warning::Failed to import $addr ($id)"
+            fi
+          }
+
+          # Clean up stale resources from previous state layout
+          for stale in "module.eks.aws_eks_addon.coredns" "module.eks.aws_eks_addon.ebs_csi"; do
+            if terraform state list 2>/dev/null | grep -qF "$stale"; then
+              echo "Removing stale state entry: $stale"
+              terraform state rm "$stale" || echo "::warning::Failed to remove $stale"
+            fi
+          done
 
           # Core resources (may already exist from a previous partial apply)
-          terraform import 'module.eks.aws_eks_cluster.main' 'rideshare-eks' 2>&1 || true
-          terraform import 'module.alb.aws_iam_role.alb_controller' 'aws-load-balancer-controller' 2>&1 || true
-          terraform import 'module.rds.aws_db_subnet_group.main' 'rideshare-rds-subnet-group' 2>&1 || true
-          terraform import 'module.rds.aws_db_instance.main' 'rideshare-postgres' 2>&1 || true
+          import_if_missing "module.eks.aws_eks_cluster.main" "rideshare-eks"
+          import_if_missing "module.alb.aws_iam_role.alb_controller" "aws-load-balancer-controller"
+          import_if_missing "module.rds.aws_db_subnet_group.main" "rideshare-rds-subnet-group"
+          import_if_missing "module.rds.aws_db_instance.main" "rideshare-postgres"
 
           # EKS node group (may already exist from a previous partial apply)
-          terraform import 'module.eks.aws_eks_node_group.main' 'rideshare-eks:rideshare-node-group' 2>&1 || true
+          import_if_missing "module.eks.aws_eks_node_group.main" "$CLUSTER_NAME:rideshare-node-group"
 
-          # EKS addons (may already exist from a previous partial apply)
-          terraform import 'module.eks.aws_eks_addon.vpc_cni' 'rideshare-eks:vpc-cni' 2>&1 || true
-          terraform import 'module.eks.aws_eks_addon.kube_proxy' 'rideshare-eks:kube-proxy' 2>&1 || true
-          terraform import 'module.eks.aws_eks_addon.coredns' 'rideshare-eks:coredns' 2>&1 || true
-          terraform import 'module.eks.aws_eks_addon.ebs_csi' 'rideshare-eks:aws-ebs-csi-driver' 2>&1 || true
-          terraform import 'module.eks.aws_eks_addon.pod_identity_agent' 'rideshare-eks:eks-pod-identity-agent' 2>&1 || true
-
-          # GitHub Actions access entry is handled by bootstrap_cluster_creator_admin_permissions.
-          # Remove from state if left over from a previous run that managed it explicitly.
-          terraform state rm 'aws_eks_access_entry.github_actions' 2>&1 || true
-          terraform state rm 'aws_eks_access_policy_association.github_actions' 2>&1 || true
-          terraform state rm 'aws_iam_user_policy.deploy_user_logs_readonly' 2>&1 || true
+          # EKS addons (correct resource paths — coredns and ebs_csi moved to root)
+          import_if_missing "module.eks.aws_eks_addon.vpc_cni" "$CLUSTER_NAME:vpc-cni"
+          import_if_missing "module.eks.aws_eks_addon.kube_proxy" "$CLUSTER_NAME:kube-proxy"
+          import_if_missing "module.eks.aws_eks_addon.pod_identity_agent" "$CLUSTER_NAME:eks-pod-identity-agent"
+          import_if_missing "aws_eks_addon.coredns" "$CLUSTER_NAME:coredns"
+          import_if_missing "aws_eks_addon.ebs_csi" "$CLUSTER_NAME:aws-ebs-csi-driver"
 
           # Helm releases (may already exist from a previous partial apply)
-          terraform import 'module.alb.helm_release.aws_load_balancer_controller' 'kube-system/aws-load-balancer-controller' 2>&1 || true
-          terraform import 'module.alb.helm_release.external_secrets' 'external-secrets/external-secrets' 2>&1 || true
-          terraform import 'module.alb.helm_release.kube_state_metrics' 'monitoring/kube-state-metrics' 2>&1 || true
+          import_if_missing "module.alb.helm_release.aws_load_balancer_controller" "kube-system/aws-load-balancer-controller"
+          import_if_missing "module.alb.helm_release.external_secrets" "external-secrets/external-secrets"
+          import_if_missing "module.alb.helm_release.kube_state_metrics" "monitoring/kube-state-metrics"
 
           echo "State reconciliation complete."
 
@@ -154,6 +177,8 @@ jobs:
 
       - name: Ensure all service images exist at deploy SHA
         run: |
+          # If an image is missing at the deploy SHA, we fall back to :latest.
+          # This means the deployed image may not match the code being deployed — treat as a warning.
           IMAGE_TAG="${{ github.sha }}"
 
           SERVICES=(simulation stream-processor control-panel bronze-ingestion hive-metastore performance-controller osrm otel-collector dbt-docs)
@@ -166,7 +191,7 @@ jobs:
                 --image-ids imageTag="$IMAGE_TAG" &>/dev/null; then
               echo "exists"
             else
-              echo "missing — retagging from latest"
+              echo "::warning::${REPO}:${IMAGE_TAG} not found — retagging from :latest (image may not match deployed code)"
               MANIFEST=$(aws ecr batch-get-image --repository-name "$REPO" \
                 --image-ids imageTag=latest \
                 --query 'images[0].imageManifest' --output text)
@@ -419,28 +444,50 @@ jobs:
       - name: Wait for EKS convergence
         run: |
           NS="rideshare-prod"
+          PHASE_WARNINGS=0
 
           echo "=== Phase 1: Infrastructure ==="
           kubectl wait --for=condition=ready pod/kafka-0 -n "$NS" --timeout=300s &
+          PID_KAFKA=$!
           kubectl wait --for=condition=available deployment/redis -n "$NS" --timeout=300s &
+          PID_REDIS=$!
           kubectl wait --for=condition=available deployment/prometheus -n "$NS" --timeout=300s &
+          PID_PROMETHEUS=$!
           kubectl wait --for=condition=available deployment/loki -n "$NS" --timeout=300s &
+          PID_LOKI=$!
           kubectl wait --for=condition=available deployment/tempo -n "$NS" --timeout=300s &
+          PID_TEMPO=$!
           kubectl wait --for=condition=available deployment/otel-collector -n "$NS" --timeout=300s 2>/dev/null &
-          wait || true
+          PID_OTEL=$!
+          wait "$PID_KAFKA"     || { echo "::warning::kafka-0 did not become ready"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_REDIS"     || { echo "::warning::deployment/redis did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_PROMETHEUS" || { echo "::warning::deployment/prometheus did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_LOKI"      || { echo "::warning::deployment/loki did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_TEMPO"     || { echo "::warning::deployment/tempo did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_OTEL"      || { echo "::warning::deployment/otel-collector did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
           echo "Phase 1 complete"
 
           echo "=== Phase 2: Schema/Config ==="
-          kubectl wait --for=condition=available deployment/schema-registry -n "$NS" --timeout=300s || true
+          kubectl wait --for=condition=available deployment/schema-registry -n "$NS" --timeout=300s \
+            || { echo "::warning::deployment/schema-registry did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
           echo "Phase 2 complete"
 
           echo "=== Phase 3: Application ==="
           kubectl wait --for=condition=available deployment/stream-processor -n "$NS" --timeout=300s &
+          PID_STREAM_PROCESSOR=$!
           kubectl wait --for=condition=available deployment/osrm -n "$NS" --timeout=600s &
+          PID_OSRM=$!
           kubectl wait --for=condition=available deployment/simulation -n "$NS" --timeout=600s &
+          PID_SIMULATION=$!
           kubectl wait --for=condition=available deployment/bronze-ingestion -n "$NS" --timeout=300s &
+          PID_BRONZE=$!
           kubectl wait --for=condition=available deployment/trino -n "$NS" --timeout=300s &
-          wait || true
+          PID_TRINO=$!
+          wait "$PID_STREAM_PROCESSOR" || { echo "::warning::deployment/stream-processor did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_OSRM"             || { echo "::warning::deployment/osrm did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_SIMULATION"       || { echo "::warning::deployment/simulation did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_BRONZE"           || { echo "::warning::deployment/bronze-ingestion did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_TRINO"            || { echo "::warning::deployment/trino did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
 
           # Verify Trino is not crash-looping
           TRINO_POD=$(kubectl get pods -n "$NS" -l app=trino -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
@@ -453,7 +500,8 @@ jobs:
           echo "Phase 3 complete"
 
           echo "=== Phase 4: Data Pipeline ==="
-          kubectl wait --for=condition=available deployment/airflow-webserver -n "$NS" --timeout=300s || true
+          kubectl wait --for=condition=available deployment/airflow-webserver -n "$NS" --timeout=300s \
+            || { echo "::warning::deployment/airflow-webserver did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
           echo "Phase 4 complete"
 
           echo "=== Phase 4.5: Glue Catalog ==="
@@ -468,12 +516,22 @@ jobs:
 
           echo "=== Phase 5: UI/Observability ==="
           kubectl wait --for=condition=available deployment/grafana -n "$NS" --timeout=300s &
+          PID_GRAFANA=$!
           kubectl wait --for=condition=available deployment/performance-controller -n "$NS" --timeout=300s &
+          PID_PERF=$!
           kubectl wait --for=condition=available deployment/control-panel -n "$NS" --timeout=300s &
+          PID_CONTROL=$!
           kubectl wait --for=condition=available deployment/dbt-docs -n "$NS" --timeout=300s &
-          wait || true
+          PID_DBT_DOCS=$!
+          wait "$PID_GRAFANA"  || { echo "::warning::deployment/grafana did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_PERF"     || { echo "::warning::deployment/performance-controller did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_CONTROL"  || { echo "::warning::deployment/control-panel did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
+          wait "$PID_DBT_DOCS" || { echo "::warning::deployment/dbt-docs did not become available"; PHASE_WARNINGS=$((PHASE_WARNINGS+1)); }
           echo "Phase 5 complete"
 
+          if [ "$PHASE_WARNINGS" -gt 0 ]; then
+            echo "::warning::Convergence completed with $PHASE_WARNINGS service(s) not ready"
+          fi
           echo "All services converged"
 
       - name: Ensure auto-teardown session
@@ -517,7 +575,10 @@ jobs:
           BODY=$(echo "$RESPONSE" | head -n-1)
 
           echo "Re-provisioning response: ${HTTP_CODE}"
-          echo "${BODY}" | jq . 2>/dev/null || echo "${BODY}"
+          echo "${BODY}" | jq '
+            if .failures then .failures |= map(.email = "[REDACTED]") else . end |
+            if .results then .results |= map(.email = "[REDACTED]") else . end
+          ' 2>/dev/null || echo "[response body redacted]"
 
           if [ "$HTTP_CODE" = "200" ]; then
             PROVISIONED=$(echo "$BODY" | jq -r '.provisioned // 0' 2>/dev/null || echo "0")
@@ -617,6 +678,16 @@ jobs:
             echo "Attempt $i/30: still waiting for: $MISSING"
             if [ "$i" -eq 30 ]; then
               echo "::warning::Some services did not pass external health checks after 5 minutes: $MISSING"
+              echo "=== Diagnostic Information ==="
+              kubectl get pods -n rideshare-prod -o wide
+              echo "---"
+              kubectl get ingress -n rideshare-prod
+              echo "---"
+              echo "ALB Target Group Health:"
+              TG_ARN=$(aws elbv2 describe-target-groups --query "TargetGroups[?contains(TargetGroupName, 'rideshare')].TargetGroupArn" --output text 2>/dev/null || true)
+              if [ -n "$TG_ARN" ]; then
+                aws elbv2 describe-target-health --target-group-arn "$TG_ARN" 2>/dev/null || true
+              fi
             fi
             sleep 10
           done
@@ -663,7 +734,7 @@ jobs:
           echo "Prometheus:   https://prometheus.ridesharing.portfolio.andresbrocco.com"
           echo "dbt Docs:     https://dbt.ridesharing.portfolio.andresbrocco.com"
           echo ""
-          echo "Estimated cost: ~$0.31/hour while running"
+          echo "Estimated cost: ~\$0.31/hour while running"
           echo "Remember to run teardown workflow when demo is complete"
           echo "================================"
 

@@ -24,13 +24,13 @@ on:
           - dbt-docs
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
   detect-changes:
     if: github.event_name != 'workflow_dispatch' && github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       simulation: ${{ steps.filter.outputs.simulation }}
       stream-processor: ${{ steps.filter.outputs.stream-processor }}
@@ -42,11 +42,11 @@ jobs:
       otel-collector: ${{ steps.filter.outputs.otel-collector }}
       dbt-docs: ${{ steps.filter.outputs.dbt-docs }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 2
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         id: filter
         with:
           filters: |
@@ -78,17 +78,30 @@ jobs:
     needs: [detect-changes]
     if: always() && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       has_services: ${{ steps.set-matrix.outputs.has_services }}
     steps:
       - name: Build service matrix
         id: set-matrix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_SCOPE: ${{ github.event.inputs.scope }}
+          CHANGED_SIMULATION: ${{ needs.detect-changes.outputs.simulation }}
+          CHANGED_STREAM_PROCESSOR: ${{ needs.detect-changes.outputs.stream-processor }}
+          CHANGED_CONTROL_PANEL: ${{ needs.detect-changes.outputs.control-panel }}
+          CHANGED_BRONZE_INGESTION: ${{ needs.detect-changes.outputs.bronze-ingestion }}
+          CHANGED_HIVE_METASTORE: ${{ needs.detect-changes.outputs.hive-metastore }}
+          CHANGED_PERFORMANCE_CONTROLLER: ${{ needs.detect-changes.outputs.performance-controller }}
+          CHANGED_OSRM: ${{ needs.detect-changes.outputs.osrm }}
+          CHANGED_OTEL_COLLECTOR: ${{ needs.detect-changes.outputs.otel-collector }}
+          CHANGED_DBT_DOCS: ${{ needs.detect-changes.outputs.dbt-docs }}
         run: |
           SERVICES='[]'
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            SCOPE="${{ github.event.inputs.scope }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            SCOPE="$INPUT_SCOPE"
             if [ "$SCOPE" = "all" ]; then
               SERVICES=$(cat <<'EOF'
           [
@@ -114,31 +127,31 @@ jobs:
           else
             # Push event — build only changed services
             ITEMS=()
-            if [ "${{ needs.detect-changes.outputs.simulation }}" = "true" ]; then
+            if [ "$CHANGED_SIMULATION" = "true" ]; then
               ITEMS+=('{"service":"simulation","target":"production"}')
             fi
-            if [ "${{ needs.detect-changes.outputs.stream-processor }}" = "true" ]; then
+            if [ "$CHANGED_STREAM_PROCESSOR" = "true" ]; then
               ITEMS+=('{"service":"stream-processor"}')
             fi
-            if [ "${{ needs.detect-changes.outputs.control-panel }}" = "true" ]; then
+            if [ "$CHANGED_CONTROL_PANEL" = "true" ]; then
               ITEMS+=('{"service":"control-panel","target":"production"}')
             fi
-            if [ "${{ needs.detect-changes.outputs.bronze-ingestion }}" = "true" ]; then
+            if [ "$CHANGED_BRONZE_INGESTION" = "true" ]; then
               ITEMS+=('{"service":"bronze-ingestion"}')
             fi
-            if [ "${{ needs.detect-changes.outputs.hive-metastore }}" = "true" ]; then
+            if [ "$CHANGED_HIVE_METASTORE" = "true" ]; then
               ITEMS+=('{"service":"hive-metastore"}')
             fi
-            if [ "${{ needs.detect-changes.outputs.performance-controller }}" = "true" ]; then
+            if [ "$CHANGED_PERFORMANCE_CONTROLLER" = "true" ]; then
               ITEMS+=('{"service":"performance-controller"}')
             fi
-            if [ "${{ needs.detect-changes.outputs.osrm }}" = "true" ]; then
+            if [ "$CHANGED_OSRM" = "true" ]; then
               ITEMS+=('{"service":"osrm"}')
             fi
-            if [ "${{ needs.detect-changes.outputs.otel-collector }}" = "true" ]; then
+            if [ "$CHANGED_OTEL_COLLECTOR" = "true" ]; then
               ITEMS+=('{"service":"otel-collector"}')
             fi
-            if [ "${{ needs.detect-changes.outputs.dbt-docs }}" = "true" ]; then
+            if [ "$CHANGED_DBT_DOCS" = "true" ]; then
               ITEMS+=('{"service":"dbt-docs"}')
             fi
 
@@ -165,28 +178,32 @@ jobs:
     if: always() && needs.generate-matrix.result == 'success' && needs.generate-matrix.outputs.has_services == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}
       fail-fast: false
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/rideshare-github-actions
           aws-region: us-east-1
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
 
       - name: Download OSRM data from S3 (or LFS fallback)
         if: matrix.service == 'osrm'
@@ -233,26 +250,28 @@ jobs:
           ECR_REPOSITORY: rideshare/${{ matrix.service }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
           LAMBDA_URL: ${{ steps.lambda.outputs.url }}
+          SERVICE: ${{ matrix.service }}
+          TARGET: ${{ matrix.target }}
         run: |
           # Simulation needs the repo-root schemas/ directory inside its build context
-          if [ "${{ matrix.service }}" = "simulation" ]; then
+          if [ "$SERVICE" = "simulation" ]; then
             cp -r schemas services/simulation/schemas
           fi
 
           # Control panel imports design/tokens.json from outside its service directory
-          if [ "${{ matrix.service }}" = "control-panel" ]; then
+          if [ "$SERVICE" = "control-panel" ]; then
             cp -r design services/control-panel/design
           fi
 
           # dbt-docs generates docs from the dbt project at build time
-          if [ "${{ matrix.service }}" = "dbt-docs" ]; then
+          if [ "$SERVICE" = "dbt-docs" ]; then
             cp -r tools/dbt services/dbt-docs/dbt-project
           fi
 
           CACHE_REPO="$ECR_REGISTRY/$ECR_REPOSITORY"
 
           BUILD_ARGS=(
-            --file "services/${{ matrix.service }}/Dockerfile"
+            --file "services/$SERVICE/Dockerfile"
             --tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
             --tag "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
             --cache-from "type=registry,ref=${CACHE_REPO}:buildcache"
@@ -260,12 +279,12 @@ jobs:
             --push
           )
 
-          if [ -n "${{ matrix.target }}" ]; then
-            BUILD_ARGS+=(--target "${{ matrix.target }}")
+          if [ -n "$TARGET" ]; then
+            BUILD_ARGS+=(--target "$TARGET")
           fi
 
           # Control panel needs production URLs baked into the Vite bundle
-          if [ "${{ matrix.service }}" = "control-panel" ]; then
+          if [ "$SERVICE" = "control-panel" ]; then
             BUILD_ARGS+=(
               --build-arg "VITE_API_URL=https://api.ridesharing.portfolio.andresbrocco.com"
               --build-arg "VITE_WS_URL=wss://api.ridesharing.portfolio.andresbrocco.com/ws"
@@ -273,17 +292,17 @@ jobs:
             )
           fi
 
-          docker buildx build "${BUILD_ARGS[@]}" "services/${{ matrix.service }}"
+          docker buildx build "${BUILD_ARGS[@]}" "services/$SERVICE"
 
-          if [ "${{ matrix.service }}" = "simulation" ]; then
+          if [ "$SERVICE" = "simulation" ]; then
             rm -rf services/simulation/schemas
           fi
 
-          if [ "${{ matrix.service }}" = "control-panel" ]; then
+          if [ "$SERVICE" = "control-panel" ]; then
             rm -rf services/control-panel/design
           fi
 
-          if [ "${{ matrix.service }}" = "dbt-docs" ]; then
+          if [ "$SERVICE" = "dbt-docs" ]; then
             rm -rf services/dbt-docs/dbt-project
           fi
 
@@ -291,7 +310,18 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: rideshare/${{ matrix.service }}
+          SERVICE: ${{ matrix.service }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          echo "Pushed ${{ matrix.service }} images:"
-          echo "  SHA tag:    $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "Pushed $SERVICE images:"
+          echo "  SHA tag:    $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           echo "  Latest tag: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: '${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}'
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+          timeout: '10m'
