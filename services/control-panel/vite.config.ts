@@ -43,19 +43,6 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     rollupOptions: {
-      output: {
-        manualChunks: (id: string) => {
-          if (id.includes('maplibre-gl')) return 'vendor-maplibre';
-          if (
-            id.includes('@deck.gl') ||
-            id.includes('@luma.gl') ||
-            id.includes('@loaders.gl') ||
-            id.includes('@math.gl')
-          )
-            return 'vendor-deckgl';
-          if (id.includes('react-map-gl')) return 'vendor-react-map-gl';
-        },
-      },
       onwarn(warning, warn) {
         if (warning.message?.includes('"spawn" is not exported by')) return;
         warn(warning);
