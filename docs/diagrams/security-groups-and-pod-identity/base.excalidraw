@@ -240,7 +240,7 @@
     {
       "id": "rds-rect",
       "type": "rectangle",
-      "x": 1290,
+      "x": 1265.2179842214302,
       "y": 55,
       "width": 300,
       "height": 210,
@@ -259,8 +259,8 @@
         "type": 3
       },
       "seed": 1007,
-      "version": 5,
-      "versionNonce": 1892695840,
+      "version": 11,
+      "versionNonce": 75159545,
       "isDeleted": false,
       "boundElements": [
         {
@@ -276,14 +276,14 @@
           "type": "arrow"
         }
       ],
-      "updated": 1775088936903,
+      "updated": 1779114480213,
       "link": null,
       "locked": false
     },
     {
       "id": "rds-text",
       "type": "text",
-      "x": 1361.5360412597656,
+      "x": 1336.7540254811959,
       "y": 100,
       "width": 156.92791748046875,
       "height": 120,
@@ -300,11 +300,11 @@
       "index": "a7",
       "roundness": null,
       "seed": 1008,
-      "version": 3,
-      "versionNonce": 348874464,
+      "version": 9,
+      "versionNonce": 231450199,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1775088891939,
+      "updated": 1779114480214,
       "link": null,
       "locked": false,
       "text": "RDS Security Group\nIN: TCP 5432\nfrom EKS Nodes SG\nIN: TCP 5432\nfrom 10.0.0.0/16\nOUT: all",
@@ -588,8 +588,8 @@
       "type": "arrow",
       "x": 1090,
       "y": 160,
-      "width": 200,
-      "height": 0,
+      "width": 175.21798422143024,
+      "height": 2.842170943040401e-14,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -603,11 +603,11 @@
       "index": "b4",
       "roundness": null,
       "seed": 2005,
-      "version": 5,
-      "versionNonce": 2017438432,
+      "version": 11,
+      "versionNonce": 926515223,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1775088996492,
+      "updated": 1779114480213,
       "link": null,
       "locked": false,
       "points": [
@@ -616,8 +616,8 @@
           0
         ],
         [
-          200,
-          0
+          175.21798422143024,
+          2.842170943040401e-14
         ]
       ],
       "lastCommittedPoint": null,
@@ -644,7 +644,7 @@
     {
       "id": "label-eks-rds",
       "type": "text",
-      "x": 1128,
+      "x": 1108,
       "y": 120,
       "width": 133,
       "height": 18,
@@ -661,11 +661,11 @@
       "index": "b5",
       "roundness": null,
       "seed": 2006,
-      "version": 1,
-      "versionNonce": 2006,
+      "version": 5,
+      "versionNonce": 888179097,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1,
+      "updated": 1779114477913,
       "link": null,
       "locked": false,
       "text": "PostgreSQL :5432",
@@ -681,10 +681,10 @@
     {
       "id": "arrow-lambda-rds",
       "type": "arrow",
-      "x": 1095.0000000211871,
-      "y": 379.82625472172225,
-      "width": 189.99999997881287,
-      "height": 219.92625472172224,
+      "x": 1090.0000000211871,
+      "y": 379.9422547217223,
+      "width": 170.2179842002431,
+      "height": 220.0422547217223,
       "angle": 0,
       "strokeColor": "#424242",
       "backgroundColor": "transparent",
@@ -698,11 +698,11 @@
       "index": "b6",
       "roundness": null,
       "seed": 2007,
-      "version": 258,
-      "versionNonce": 2121339616,
+      "version": 346,
+      "versionNonce": 1307451993,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1775088942004,
+      "updated": 1779114486411,
       "link": null,
       "locked": false,
       "points": [
@@ -711,16 +711,16 @@
           0
         ],
         [
-          60.86509789927641,
+          81.20957852266451,
           0
         ],
         [
-          60.86509789927641,
-          -219.92625472172224
+          81.20957852266451,
+          -220.0422547217223
         ],
         [
-          189.99999997881287,
-          -219.92625472172224
+          170.2179842002431,
+          -220.0422547217223
         ]
       ],
       "lastCommittedPoint": null,
@@ -748,12 +748,12 @@
         {
           "index": 2,
           "start": [
-            60.86509789927641,
+            81.20957852266451,
             0
           ],
           "end": [
-            60.86509789927641,
-            -219.92625472172224
+            81.20957852266451,
+            -220.0422547217223
           ]
         }
       ],
