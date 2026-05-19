@@ -192,14 +192,17 @@ jobs:
       api-changed: ${{ steps.filter.outputs.api }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v4
-        id: filter
         with:
-          filters: |
-            api:
-              - 'services/simulation/src/api/**'
-              - 'services/control-panel/src/**'
-              - 'schemas/api/**'
+          fetch-depth: 2
+      - name: Detect changed paths
+        id: filter
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          if echo "$CHANGED" | grep -qE '^(services/simulation/src/api/|services/control-panel/src/|schemas/api/)'; then
+            echo "api=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "api=false" >> "$GITHUB_OUTPUT"
+          fi
 
   api-contract-validation:
     needs: [lint-and-typecheck, detect-changes]

@@ -39,35 +39,28 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 0
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v4
+          fetch-depth: 2
+      - name: Detect changed paths
         if: github.event_name != 'workflow_dispatch'
         id: filter
-        with:
-          filters: |
-            simulation:
-              - 'services/simulation/**'
-              - 'schemas/**'
-            stream-processor:
-              - 'services/stream-processor/**'
-            control-panel:
-              - 'services/control-panel/**'
-            bronze-ingestion:
-              - 'services/bronze-ingestion/**'
-            hive-metastore:
-              - 'services/hive-metastore/**'
-            performance-controller:
-              - 'services/performance-controller/**'
-            osrm:
-              - 'services/osrm/**'
-            otel-collector:
-              - 'services/otel-collector/**'
-            dbt-docs:
-              - 'services/dbt-docs/**'
-              - 'tools/dbt/models/**'
-              - 'tools/dbt/macros/**'
-              - 'tools/dbt/dbt_project.yml'
-              - 'tools/dbt/packages.yml'
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          check() { echo "$CHANGED" | grep -qE "$1" && echo "true" || echo "false"; }
+
+          {
+            echo "simulation=$(check '^(services/simulation/|schemas/)')"
+            echo "stream-processor=$(check '^services/stream-processor/')"
+            echo "control-panel=$(check '^services/control-panel/')"
+            echo "bronze-ingestion=$(check '^services/bronze-ingestion/')"
+            echo "hive-metastore=$(check '^services/hive-metastore/')"
+            echo "performance-controller=$(check '^services/performance-controller/')"
+            echo "osrm=$(check '^services/osrm/')"
+            echo "otel-collector=$(check '^services/otel-collector/')"
+            echo "dbt-docs=$(check '^(services/dbt-docs/|tools/dbt/models/|tools/dbt/macros/|tools/dbt/dbt_project\.yml$|tools/dbt/packages\.yml$)')"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build service matrix
         id: set-matrix

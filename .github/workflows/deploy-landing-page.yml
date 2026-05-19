@@ -21,12 +21,15 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 2
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v4
+      - name: Detect changed paths
         id: filter
-        with:
-          filters: |
-            control-panel:
-              - 'services/control-panel/**'
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          if echo "$CHANGED" | grep -q '^services/control-panel/'; then
+            echo "control-panel=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "control-panel=false" >> "$GITHUB_OUTPUT"
+          fi
 
   deploy-landing-page:
     needs: [detect-changes]
