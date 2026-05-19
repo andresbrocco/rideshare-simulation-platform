@@ -55,12 +55,12 @@ jobs:
               kubectl get nodes
             else
               echo "nodes_available=false" >> "$GITHUB_OUTPUT"
-              echo "::warning::Cluster API reachable but no Ready nodes (scaled to 0?)"
+              echo "Cluster API reachable but no Ready nodes (scaled to 0?)"
             fi
           else
             echo "cluster_api_available=false" >> "$GITHUB_OUTPUT"
             echo "nodes_available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::EKS cluster not reachable or not ACTIVE — running in cluster-down mode"
+            echo "EKS cluster not reachable or not ACTIVE — running in cluster-down mode"
           fi
 
       # ── Phase 3: Suspend ArgoCD ──────────────────────────────────────
@@ -214,7 +214,7 @@ jobs:
               echo "Deleted ${VOL_ID}"
             done
           fi
-          echo "::warning::When the cluster returns, delete stale PVC if it exists: kubectl delete pvc kafka-data-kafka-0 -n rideshare-prod --ignore-not-found"
+          echo "When the cluster returns, delete stale PVC if it exists: kubectl delete pvc kafka-data-kafka-0 -n rideshare-prod --ignore-not-found"
 
       # ── Phase 6: Wipe S3 ────────────────────────────────────────────
 
@@ -257,7 +257,7 @@ jobs:
             echo "RDS instance found"
           else
             echo "rds_available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::RDS instance not found — skipping database reset"
+            echo "RDS instance not found — skipping database reset"
           fi
 
       - name: Reset RDS databases via Lambda
