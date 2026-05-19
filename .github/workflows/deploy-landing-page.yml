@@ -21,7 +21,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 2
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v4
         id: filter
         with:
           filters: |
@@ -50,7 +50,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: services/control-panel/package-lock.json
 
@@ -96,16 +96,24 @@ jobs:
         run: |
           BUCKET="rideshare-${ACCOUNT_ID}-frontend"
 
+          # 1. Upload new hashed assets (no --delete yet)
+          aws s3 sync dist/ "s3://${BUCKET}/" \
+            --cache-control "public, max-age=31536000" \
+            --exclude "index.html" \
+            --exclude "*.html"
+
+          # 2. Upload new HTML (points to new assets that are now in S3)
+          aws s3 sync dist/ "s3://${BUCKET}/" \
+            --exclude "*" \
+            --include "*.html" \
+            --cache-control "public, max-age=0, must-revalidate"
+
+          # 3. Clean up stale old assets (safe — new HTML already live)
           aws s3 sync dist/ "s3://${BUCKET}/" \
             --delete \
             --cache-control "public, max-age=31536000" \
             --exclude "index.html" \
             --exclude "*.html"
-
-          aws s3 sync dist/ "s3://${BUCKET}/" \
-            --exclude "*" \
-            --include "*.html" \
-            --cache-control "public, max-age=0, must-revalidate"
 
       - name: Invalidate CloudFront cache
         run: |

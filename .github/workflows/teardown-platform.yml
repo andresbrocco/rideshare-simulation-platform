@@ -3,6 +3,10 @@ name: Teardown Platform
 on:
   workflow_dispatch:
 
+concurrency:
+  group: teardown-platform
+  cancel-in-progress: false
+
 permissions:
   id-token: write
   contents: read
@@ -97,8 +101,11 @@ jobs:
             echo "Controller enabled"
           fi
 
-          # 5. Poll until paused (~50 min timeout)
+          # 5. Poll until paused (~50 min timeout, with stall detection)
           ELAPSED=0
+          PREV_TRIPS=-1
+          STALL_COUNT=0
+          STALL_LIMIT=12
           while [ $ELAPSED -lt 3000 ]; do
             sleep 10
             ELAPSED=$((ELAPSED + 10))
@@ -111,8 +118,18 @@ jobs:
               echo "Simulation gracefully stopped (state=$POLL_STATE)"
               exit 0
             fi
+            if [ "$POLL_TRIPS" = "$PREV_TRIPS" ]; then
+              STALL_COUNT=$((STALL_COUNT + 1))
+              if [ "$STALL_COUNT" -ge "$STALL_LIMIT" ]; then
+                echo "::warning::Active trips stalled at $POLL_TRIPS for $((STALL_COUNT * 10))s, proceeding with teardown"
+                break
+              fi
+            else
+              STALL_COUNT=0
+            fi
+            PREV_TRIPS="$POLL_TRIPS"
           done
-          echo "Warning: Timed out waiting for simulation to pause (3000s), continuing teardown"
+          echo "Warning: Timed out waiting for simulation to pause (${ELAPSED}s), continuing teardown"
           exit 0
 
       - name: Delete Route 53 Wildcard Record
@@ -229,17 +246,16 @@ jobs:
             fi
           done
 
-          # 6. Release unassociated EIPs without a Name tag (ALB controller artifacts)
+          # 6. Release unassociated EIPs tagged by ALB controller for our cluster
           aws ec2 describe-addresses --output json \
-            | jq -c '.Addresses[] | select(.AssociationId == null) | [.AllocationId, (.Tags // [])]' \
-            | while read -r EIP_ENTRY; do
-            ALLOC_ID=$(echo "$EIP_ENTRY" | jq -r '.[0]')
-            HAS_NAME=$(echo "$EIP_ENTRY" | jq -r '.[1] | map(select(.Key=="Name")) | length')
-            if [ "$HAS_NAME" = "0" ]; then
-              aws ec2 release-address --allocation-id "$ALLOC_ID" \
-                && echo "Released EIP: $ALLOC_ID" \
-                || echo "Warning: Failed to release EIP $ALLOC_ID"
-            fi
+            | jq -c '.Addresses[] | select(.AssociationId == null)
+              | select(.Tags != null and ([ .Tags[] | select(.Key=="elbv2.k8s.aws/cluster" and .Value=="rideshare-eks") ] | length > 0))
+              | .AllocationId' -r \
+            | while read -r ALLOC_ID; do
+            [ -z "$ALLOC_ID" ] && continue
+            aws ec2 release-address --allocation-id "$ALLOC_ID" \
+              && echo "Released EIP: $ALLOC_ID" \
+              || echo "Warning: Failed to release EIP $ALLOC_ID"
           done
 
           # 7. Delete orphaned security groups tagged by ALB controller
@@ -257,6 +273,7 @@ jobs:
           echo "ALB cleanup complete"
 
       - name: Clean Up Orphaned EBS Volumes
+        if: always()
         run: |
           echo "Deleting orphaned EBS volumes from destroyed EKS cluster..."
           readarray -t ORPHANED < <(aws ec2 describe-volumes \
@@ -276,6 +293,7 @@ jobs:
           fi
 
       - name: Verify Route 53 Wildcard Record Removed
+        if: always()
         run: |
           ZONE_ID=$(aws route53 list-hosted-zones-by-name \
             --dns-name ridesharing.portfolio.andresbrocco.com \
@@ -301,6 +319,7 @@ jobs:
           fi
 
       - name: Verify Foundation Resources Preserved
+        if: always()
         run: |
           echo "Verifying foundation resources are intact..."
           ACCT="${{ secrets.AWS_ACCOUNT_ID }}"
@@ -370,6 +389,7 @@ jobs:
           fi
 
       - name: Teardown Summary
+        if: always()
         run: |
           echo "================================"
           echo "Platform Teardown Complete"

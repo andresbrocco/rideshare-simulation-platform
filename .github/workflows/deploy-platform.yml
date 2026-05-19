@@ -406,6 +406,9 @@ jobs:
 
       - name: Apply ArgoCD Application
         run: |
+          # Pre-create namespace so pods can start immediately rather than
+          # waiting for ArgoCD to create it (saves ~2 minutes)
+          kubectl create namespace rideshare-prod --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f infrastructure/kubernetes/argocd/app-rideshare-platform.yaml
 
           echo "ArgoCD application created. Syncing..."
@@ -561,35 +564,6 @@ jobs:
             echo "Response: ${BODY}"
           fi
 
-      - name: Re-provision visitor accounts
-        env:
-          LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
-          API_KEY: ${{ steps.lambda-config.outputs.api_key }}
-        run: |
-          echo "Re-provisioning visitor accounts from DynamoDB..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${LAMBDA_URL}" \
-            -H "Content-Type: application/json" \
-            -d "{\"action\":\"reprovision-visitors\",\"api_key\":\"${API_KEY}\"}")
-
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n-1)
-
-          echo "Re-provisioning response: ${HTTP_CODE}"
-          echo "${BODY}" | jq '
-            if .failures then .failures |= map(.email = "[REDACTED]") else . end |
-            if .results then .results |= map(.email = "[REDACTED]") else . end
-          ' 2>/dev/null || echo "[response body redacted]"
-
-          if [ "$HTTP_CODE" = "200" ]; then
-            PROVISIONED=$(echo "$BODY" | jq -r '.provisioned // 0' 2>/dev/null || echo "0")
-            echo "Re-provisioned ${PROVISIONED} visitor account(s)"
-          elif [ "$HTTP_CODE" = "207" ]; then
-            FAILED=$(echo "$BODY" | jq -r '.failed // 0' 2>/dev/null || echo "unknown")
-            echo "::warning::Re-provisioning completed with ${FAILED} failure(s) — some visitor accounts may need manual re-provisioning"
-          else
-            echo "::warning::Re-provisioning returned HTTP ${HTTP_CODE} — visitor accounts may need manual re-provisioning after deploy"
-          fi
-
       - name: Get Load Balancer URL
         id: alb-url
         run: |
@@ -692,27 +666,65 @@ jobs:
             sleep 10
           done
 
+      - name: Re-provision visitor accounts
+        env:
+          LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
+          API_KEY: ${{ steps.lambda-config.outputs.api_key }}
+        run: |
+          echo "Re-provisioning visitor accounts from DynamoDB..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${LAMBDA_URL}" \
+            -H "Content-Type: application/json" \
+            -d "{\"action\":\"reprovision-visitors\",\"api_key\":\"${API_KEY}\"}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "Re-provisioning response: ${HTTP_CODE}"
+          echo "${BODY}" | jq '
+            if .failures then .failures |= map(.email = "[REDACTED]") else . end |
+            if .results then .results |= map(.email = "[REDACTED]") else . end
+          ' 2>/dev/null || echo "[response body redacted]"
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            PROVISIONED=$(echo "$BODY" | jq -r '.provisioned // 0' 2>/dev/null || echo "0")
+            echo "Re-provisioned ${PROVISIONED} visitor account(s)"
+          elif [ "$HTTP_CODE" = "207" ]; then
+            FAILED=$(echo "$BODY" | jq -r '.failed // 0' 2>/dev/null || echo "unknown")
+            echo "::warning::Re-provisioning completed with ${FAILED} failure(s) — some visitor accounts may need manual re-provisioning"
+          else
+            echo "::warning::Re-provisioning returned HTTP ${HTTP_CODE} — visitor accounts may need manual re-provisioning after deploy"
+          fi
+
       - name: Start simulation and spawn agents
         env:
           LAMBDA_URL: ${{ steps.lambda-config.outputs.url }}
           API_KEY: ${{ steps.lambda-config.outputs.api_key }}
         run: |
           echo "Starting simulation and spawning agents..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${LAMBDA_URL}" \
-            -H "Content-Type: application/json" \
-            --max-time 130 \
-            -d "{\"action\":\"start-simulation\",\"api_key\":\"${API_KEY}\"}")
+          MAX_ATTEMPTS=3
+          for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${LAMBDA_URL}" \
+              -H "Content-Type: application/json" \
+              --max-time 130 \
+              -d "{\"action\":\"start-simulation\",\"api_key\":\"${API_KEY}\"}")
 
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n-1)
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | head -n-1)
 
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "Simulation started successfully"
-            echo "${BODY}" | jq . 2>/dev/null || echo "${BODY}"
-          else
-            echo "::warning::Start simulation returned HTTP ${HTTP_CODE} — simulation may need manual start"
-            echo "${BODY}"
-          fi
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Simulation started successfully"
+              echo "${BODY}" | jq . 2>/dev/null || echo "${BODY}"
+              break
+            fi
+
+            if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+              echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: start-simulation returned HTTP ${HTTP_CODE}, retrying in 10s..."
+              sleep 10
+            else
+              echo "::warning::Start simulation returned HTTP ${HTTP_CODE} after ${MAX_ATTEMPTS} attempts — simulation may need manual start"
+              echo "${BODY}"
+            fi
+          done
 
       - name: Deployment Summary
         run: |

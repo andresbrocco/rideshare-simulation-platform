@@ -28,25 +28,20 @@ permissions:
 
 jobs:
   detect-changes:
-    if: github.event_name != 'workflow_dispatch' && github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      simulation: ${{ steps.filter.outputs.simulation }}
-      stream-processor: ${{ steps.filter.outputs.stream-processor }}
-      control-panel: ${{ steps.filter.outputs.control-panel }}
-      bronze-ingestion: ${{ steps.filter.outputs.bronze-ingestion }}
-      hive-metastore: ${{ steps.filter.outputs.hive-metastore }}
-      performance-controller: ${{ steps.filter.outputs.performance-controller }}
-      osrm: ${{ steps.filter.outputs.osrm }}
-      otel-collector: ${{ steps.filter.outputs.otel-collector }}
-      dbt-docs: ${{ steps.filter.outputs.dbt-docs }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has_services: ${{ steps.set-matrix.outputs.has_services }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        if: github.event_name != 'workflow_dispatch'
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 2
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+          fetch-depth: 0
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v4
+        if: github.event_name != 'workflow_dispatch'
         id: filter
         with:
           filters: |
@@ -74,29 +69,20 @@ jobs:
               - 'tools/dbt/dbt_project.yml'
               - 'tools/dbt/packages.yml'
 
-  generate-matrix:
-    needs: [detect-changes]
-    if: always() && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-      has_services: ${{ steps.set-matrix.outputs.has_services }}
-    steps:
       - name: Build service matrix
         id: set-matrix
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_SCOPE: ${{ github.event.inputs.scope }}
-          CHANGED_SIMULATION: ${{ needs.detect-changes.outputs.simulation }}
-          CHANGED_STREAM_PROCESSOR: ${{ needs.detect-changes.outputs.stream-processor }}
-          CHANGED_CONTROL_PANEL: ${{ needs.detect-changes.outputs.control-panel }}
-          CHANGED_BRONZE_INGESTION: ${{ needs.detect-changes.outputs.bronze-ingestion }}
-          CHANGED_HIVE_METASTORE: ${{ needs.detect-changes.outputs.hive-metastore }}
-          CHANGED_PERFORMANCE_CONTROLLER: ${{ needs.detect-changes.outputs.performance-controller }}
-          CHANGED_OSRM: ${{ needs.detect-changes.outputs.osrm }}
-          CHANGED_OTEL_COLLECTOR: ${{ needs.detect-changes.outputs.otel-collector }}
-          CHANGED_DBT_DOCS: ${{ needs.detect-changes.outputs.dbt-docs }}
+          CHANGED_SIMULATION: ${{ steps.filter.outputs.simulation }}
+          CHANGED_STREAM_PROCESSOR: ${{ steps.filter.outputs.stream-processor }}
+          CHANGED_CONTROL_PANEL: ${{ steps.filter.outputs.control-panel }}
+          CHANGED_BRONZE_INGESTION: ${{ steps.filter.outputs.bronze-ingestion }}
+          CHANGED_HIVE_METASTORE: ${{ steps.filter.outputs.hive-metastore }}
+          CHANGED_PERFORMANCE_CONTROLLER: ${{ steps.filter.outputs.performance-controller }}
+          CHANGED_OSRM: ${{ steps.filter.outputs.osrm }}
+          CHANGED_OTEL_COLLECTOR: ${{ steps.filter.outputs.otel-collector }}
+          CHANGED_DBT_DOCS: ${{ steps.filter.outputs.dbt-docs }}
         run: |
           SERVICES='[]'
 
@@ -174,15 +160,15 @@ jobs:
           echo "$SERVICES" | jq .
 
   build:
-    needs: [generate-matrix]
-    if: always() && needs.generate-matrix.result == 'success' && needs.generate-matrix.outputs.has_services == 'true'
+    needs: [detect-changes]
+    if: always() && needs.detect-changes.result == 'success' && needs.detect-changes.outputs.has_services == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       id-token: write
       contents: read
     strategy:
-      matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
       fail-fast: false
 
     steps:
@@ -253,6 +239,11 @@ jobs:
           SERVICE: ${{ matrix.service }}
           TARGET: ${{ matrix.target }}
         run: |
+          cleanup() {
+            rm -rf "services/simulation/schemas" "services/control-panel/design" "services/dbt-docs/dbt-project"
+          }
+          trap cleanup EXIT
+
           # Simulation needs the repo-root schemas/ directory inside its build context
           if [ "$SERVICE" = "simulation" ]; then
             cp -r schemas services/simulation/schemas
@@ -275,7 +266,7 @@ jobs:
             --tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
             --tag "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
             --cache-from "type=registry,ref=${CACHE_REPO}:buildcache"
-            --cache-to "type=registry,ref=${CACHE_REPO}:buildcache,mode=max"
+            --cache-to "type=registry,ref=${CACHE_REPO}:buildcache,mode=min"
             --push
           )
 
@@ -293,18 +284,6 @@ jobs:
           fi
 
           docker buildx build "${BUILD_ARGS[@]}" "services/$SERVICE"
-
-          if [ "$SERVICE" = "simulation" ]; then
-            rm -rf services/simulation/schemas
-          fi
-
-          if [ "$SERVICE" = "control-panel" ]; then
-            rm -rf services/control-panel/design
-          fi
-
-          if [ "$SERVICE" = "dbt-docs" ]; then
-            rm -rf services/dbt-docs/dbt-project
-          fi
 
       - name: Output image URIs
         env:
