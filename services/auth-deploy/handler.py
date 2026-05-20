@@ -1873,7 +1873,7 @@ def handle_ensure_session(api_key: str) -> tuple[int, dict[str, Any]]:
     was triggered. Three cases:
 
     1. No session exists (gh CLI path): Create full session with
-       deployed_at=now, deadline=now+MAX_REMAINING_SECONDS, and
+       deployed_at=now, deadline=now+SESSION_STEP_MINUTES*60, and
        EventBridge schedule.
     2. Deploying session exists, no deadline (landing page, frontend
        hasn't called activate yet): Activate it — set deadline and
@@ -1888,7 +1888,7 @@ def handle_ensure_session(api_key: str) -> tuple[int, dict[str, Any]]:
 
     session = get_session()
     now = int(time.time())
-    deadline_seconds = MAX_REMAINING_SECONDS
+    deadline_seconds = SESSION_STEP_MINUTES * 60
 
     # Case 3: Session with deadline already set — reset deadline to now + window.
     # A re-deploy must always get a fresh auto-teardown window; the old
