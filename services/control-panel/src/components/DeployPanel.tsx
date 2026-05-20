@@ -765,55 +765,73 @@ export default function DeployPanel({
       {/* Idle */}
       {panelState === 'idle' && (
         <>
-          <div className={styles.runnerRow}>
-            <label htmlFor="dbt-runner-select" className={styles.runnerLabel}>
-              DBT Runner
-            </label>
-            <select
-              id="dbt-runner-select"
-              className={styles.runnerSelect}
-              value={dbtRunner}
-              onChange={(e) => setDbtRunner(e.target.value as 'duckdb' | 'glue')}
-              disabled={launching}
-            >
-              <option value="duckdb">DuckDB</option>
-              <option value="glue">AWS Glue</option>
-            </select>
-          </div>
-          {dataState && (
-            <div className={styles.dataStateRow}>
-              <span className={styles.dataStateLabel}>Lakehouse data:</span>
-              <span
-                className={`${styles.dataStateBadge} ${
-                  dataState.status === 'populated'
-                    ? styles.dataState_populated
-                    : dataState.status === 'clean'
-                      ? styles.dataState_clean
-                      : dataState.status === 'resetting'
-                        ? styles.dataState_resetting
-                        : dataState.status === 'error'
-                          ? styles.dataState_error
-                          : styles.dataState_unknown
-                }`}
+          <div className={styles.configGroup}>
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>DBT Runner</span>
+              <select
+                id="dbt-runner-select"
+                className={styles.runnerSelect}
+                value={dbtRunner}
+                onChange={(e) => setDbtRunner(e.target.value as 'duckdb' | 'glue')}
+                disabled={launching}
               >
-                {dataState.status === 'resetting' && <span className={styles.dataStateSpinner} />}
-                {dataState.status === 'populated' && 'Populated'}
-                {dataState.status === 'clean' && 'Clean'}
-                {dataState.status === 'resetting' && 'Resetting...'}
-                {dataState.status === 'error' && 'Reset error'}
-                {dataState.status === 'unknown' && 'Unknown'}
-              </span>
-              {role === 'admin' && dataState.status === 'populated' && (
-                <button
-                  className={styles.resetButton}
-                  onClick={() => setShowResetModal(true)}
-                  disabled={resetting}
-                >
-                  {resetting ? 'Resetting...' : 'Reset'}
-                </button>
-              )}
+                <option value="duckdb">DuckDB</option>
+                <option value="glue">AWS Glue</option>
+              </select>
             </div>
-          )}
+            {dataState && (
+              <div className={styles.configRow}>
+                <span className={styles.configLabel}>Lakehouse data</span>
+                <span className={styles.configValue}>
+                  <span
+                    className={`${styles.dataStateBadge} ${
+                      dataState.status === 'populated'
+                        ? styles.dataState_populated
+                        : dataState.status === 'clean'
+                          ? styles.dataState_clean
+                          : dataState.status === 'resetting'
+                            ? styles.dataState_resetting
+                            : dataState.status === 'error'
+                              ? styles.dataState_error
+                              : styles.dataState_unknown
+                    }`}
+                  >
+                    {dataState.status === 'resetting' && (
+                      <span className={styles.dataStateSpinner} />
+                    )}
+                    {dataState.status === 'populated' && 'Populated'}
+                    {dataState.status === 'clean' && 'Clean'}
+                    {dataState.status === 'resetting' && 'Resetting...'}
+                    {dataState.status === 'error' && 'Reset error'}
+                    {dataState.status === 'unknown' && 'Unknown'}
+                  </span>
+                  {role === 'admin' && dataState.status === 'populated' && (
+                    <button
+                      className={styles.resetIcon}
+                      onClick={() => setShowResetModal(true)}
+                      disabled={resetting}
+                      aria-label="Reset lakehouse data"
+                    >
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <title>Reset lakehouse data</title>
+                        <path d="M3 12a9 9 0 1 1 3 7" />
+                        <polyline points="3 22 3 16 9 16" />
+                      </svg>
+                    </button>
+                  )}
+                </span>
+              </div>
+            )}
+          </div>
           <button
             className={styles.deployButton}
             onClick={handleDeploy}
