@@ -145,10 +145,13 @@ jobs:
           fi
 
           # Get the current wildcard record (need full details for DELETE)
+          # Route 53 API returns wildcard as \052 (octal), so match both formats
           WILDCARD_RECORD=$(aws route53 list-resource-record-sets \
-            --hosted-zone-id "$ZONE_ID" \
-            --query "ResourceRecordSets[?Name=='\\*.ridesharing.portfolio.andresbrocco.com.'] | [0]" \
-            --output json)
+            --hosted-zone-id "$ZONE_ID" --output json \
+            | jq '[.ResourceRecordSets[] | select(
+                .Name == "\\052.ridesharing.portfolio.andresbrocco.com."
+                or .Name == "*.ridesharing.portfolio.andresbrocco.com."
+              )] | .[0] // null')
 
           if [ "$WILDCARD_RECORD" = "null" ] || [ -z "$WILDCARD_RECORD" ]; then
             echo "No wildcard Route 53 record found, nothing to delete"
@@ -305,20 +308,23 @@ jobs:
             exit 0
           fi
 
-          WILDCARD_RECORD=$(aws route53 list-resource-record-sets \
-            --hosted-zone-id "$ZONE_ID" \
-            --query "ResourceRecordSets[?Name=='\\*.ridesharing.portfolio.andresbrocco.com.']" \
-            --output json)
+          # Route 53 API returns wildcard as \052 (octal), so match both formats
+          WILDCARD_COUNT=$(aws route53 list-resource-record-sets \
+            --hosted-zone-id "$ZONE_ID" --output json \
+            | jq '[.ResourceRecordSets[] | select(
+                .Name == "\\052.ridesharing.portfolio.andresbrocco.com."
+                or .Name == "*.ridesharing.portfolio.andresbrocco.com."
+              )] | length')
 
-          if [ "$WILDCARD_RECORD" = "[]" ]; then
+          if [ "$WILDCARD_COUNT" = "0" ]; then
             echo "Verified: wildcard Route 53 record removed"
           else
-            echo "Error: wildcard Route 53 record still exists after deletion attempt"
-            echo "$WILDCARD_RECORD"
+            echo "Error: wildcard Route 53 record still exists after deletion attempt ($WILDCARD_COUNT found)"
             exit 1
           fi
 
       - name: Verify Foundation Resources Preserved
+        id: verify-foundation
         if: always()
         run: |
           echo "Verifying foundation resources are intact..."
@@ -328,10 +334,12 @@ jobs:
           # S3 buckets (uses s3api head-bucket — needs s3:ListBucket, already granted)
           echo ""
           echo "=== S3 Buckets ==="
+          S3_FOUND=0
           for TIER in bronze silver gold checkpoints build-assets frontend; do
             BUCKET="rideshare-${ACCT}-${TIER}"
             if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
               echo "  $TIER bucket preserved"
+              S3_FOUND=$((S3_FOUND + 1))
             else
               echo "  ERROR: $TIER bucket missing ($BUCKET)"
               ERRORS=$((ERRORS + 1))
@@ -344,10 +352,11 @@ jobs:
           ECR_REPOS=(rideshare/simulation rideshare/stream-processor rideshare/control-panel rideshare/bronze-ingestion rideshare/hive-metastore rideshare/osrm rideshare/otel-collector rideshare/performance-controller)
           ECR_FOUND=0
           for REPO in "${ECR_REPOS[@]}"; do
-            if aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1; then
+            if ERR=$(aws ecr describe-repositories --repository-names "$REPO" 2>&1 >/dev/null); then
               ECR_FOUND=$((ECR_FOUND + 1))
             else
-              echo "  ERROR: ECR repo missing: $REPO"
+              echo "  ERROR: ECR repo not accessible: $REPO"
+              echo "    $(echo "$ERR" | head -1)"
               ERRORS=$((ERRORS + 1))
             fi
           done
@@ -388,6 +397,15 @@ jobs:
             echo "All foundation resources verified intact"
           fi
 
+          # Write counts for the summary step
+          {
+            echo "s3=$S3_FOUND/6"
+            echo "ecr=$ECR_FOUND/${#ECR_REPOS[@]}"
+            echo "secrets=$SECRET_FOUND/7"
+            echo "cloudfront=$([ -n "$DISTRIBUTION" ] && echo 'yes' || echo 'no')"
+            echo "errors=$ERRORS"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Teardown Summary
         if: always()
         run: |
@@ -404,11 +422,11 @@ jobs:
           echo "  - Route 53 wildcard record"
           echo ""
           echo "PRESERVED:"
-          echo "  - S3 Buckets (lakehouse data, checkpoints, build-assets, frontend)"
-          echo "  - ECR Images (all service images)"
-          echo "  - Secrets Manager (all credentials)"
+          echo "  - S3 Buckets (${{ steps.verify-foundation.outputs.s3 }})"
+          echo "  - ECR Repos (${{ steps.verify-foundation.outputs.ecr }})"
+          echo "  - Secrets Manager (${{ steps.verify-foundation.outputs.secrets }})"
           echo "  - Route 53 Hosted Zone"
-          echo "  - CloudFront Distribution"
+          echo "  - CloudFront Distribution (${{ steps.verify-foundation.outputs.cloudfront }})"
           echo "  - ACM Certificate"
           echo ""
           echo "Frontend remains accessible at:"
@@ -450,16 +468,19 @@ jobs:
           # Primary: call Lambda to cleanly delete session + EventBridge schedule
           LAMBDA_URL="${{ steps.lambda-config.outputs.url }}"
           API_KEY="${{ steps.lambda-config.outputs.api_key }}"
+          LAMBDA_OK=false
           if [ -n "$LAMBDA_URL" ] && [ -n "$API_KEY" ]; then
             curl -sf -X POST "$LAMBDA_URL" \
               -H "Content-Type: application/json" \
               -d "{\"action\":\"complete-teardown\",\"api_key\":\"$API_KEY\"}" \
-              && echo "Session cleaned up via Lambda" \
-              || echo "Note: Lambda cleanup call failed"
+              && { echo "Session cleaned up via Lambda"; LAMBDA_OK=true; } \
+              || echo "Note: Lambda cleanup call failed, trying SSM fallback"
           fi
-          # Fallback: direct SSM delete in case Lambda is unreachable (infra destroyed)
-          aws ssm delete-parameter --name "/rideshare/session/deadline" 2>/dev/null \
-            || echo "Note: session parameter may already be deleted"
+          # Fallback: direct SSM delete only if Lambda failed or was unreachable
+          if [ "$LAMBDA_OK" = "false" ]; then
+            aws ssm delete-parameter --name "/rideshare/session/deadline" 2>/dev/null \
+              || echo "Note: session parameter may already be deleted"
+          fi
 
       - name: Write data-state to SSM
         if: always()
