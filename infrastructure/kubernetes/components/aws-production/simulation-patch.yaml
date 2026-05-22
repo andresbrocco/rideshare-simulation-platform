@@ -32,9 +32,9 @@ spec:
             # SimulationSettings uses env_prefix="SIM_", so all settings need that prefix
             - name: SIM_CHECKPOINT_STORAGE_TYPE
               value: "s3"
-            # Replace <account-id> with AWS account ID during deploy
+            # Replace 962393283188 with AWS account ID during deploy
             - name: SIM_CHECKPOINT_S3_BUCKET
-              value: "rideshare-<account-id>-checkpoints"
+              value: "rideshare-962393283188-checkpoints"
             - name: SIM_CHECKPOINT_S3_PREFIX
               value: "simulation"
             - name: SIM_RESUME_FROM_CHECKPOINT

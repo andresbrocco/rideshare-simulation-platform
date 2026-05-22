@@ -11041,7 +11041,7 @@ data:
               "root_selector": "logins",
               "source": "url",
               "type": "json",
-              "url": "<lambda-auth-url>",
+              "url": "https://d75xn3jaru24arpfamezuwsk2u0ylzno.lambda-url.us-east-1.on.aws/",
               "url_options": {
                 "body_content_type": "application/json",
                 "body_type": "raw-body",
@@ -11120,7 +11120,7 @@ data:
               "root_selector": "logins",
               "source": "url",
               "type": "json",
-              "url": "<lambda-auth-url>",
+              "url": "https://d75xn3jaru24arpfamezuwsk2u0ylzno.lambda-url.us-east-1.on.aws/",
               "url_options": {
                 "body_content_type": "application/json",
                 "body_type": "raw-body",
@@ -11212,7 +11212,7 @@ data:
               "root_selector": "logins",
               "source": "url",
               "type": "json",
-              "url": "<lambda-auth-url>",
+              "url": "https://d75xn3jaru24arpfamezuwsk2u0ylzno.lambda-url.us-east-1.on.aws/",
               "url_options": {
                 "body_content_type": "application/json",
                 "body_type": "raw-body",
@@ -11328,7 +11328,7 @@ data:
               "root_selector": "logins",
               "source": "url",
               "type": "json",
-              "url": "<lambda-auth-url>",
+              "url": "https://d75xn3jaru24arpfamezuwsk2u0ylzno.lambda-url.us-east-1.on.aws/",
               "url_options": {
                 "body_content_type": "application/json",
                 "body_type": "raw-body",
