@@ -204,8 +204,8 @@ describe('LandingPage', () => {
     const statNumbers = document.querySelectorAll('.stat-number');
     const values = Array.from(statNumbers).map((el) => el.textContent);
     expect(values).toContain('30+');
-    expect(values).toContain('2000+');
-    expect(values).toContain('10');
+    expect(values).toContain('1950+');
+    expect(values).toContain('11');
     expect(values).toContain('3');
   });
 

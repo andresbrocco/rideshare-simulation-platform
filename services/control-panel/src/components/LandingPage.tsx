@@ -312,7 +312,7 @@ const TECH_GROUPS: TechGroup[] = [
         label: 'Grafana',
         icon: SiGrafana,
         iconColor: SiGrafanaHex,
-        tooltip: '10 dashboards across 5 categories with 4 datasources',
+        tooltip: '11 dashboards across 6 categories with 5 datasources',
       },
       {
         label: 'Loki',
@@ -562,8 +562,8 @@ function getExternalServices(isLocal: boolean): ExternalService[] {
 
 const STATS = [
   { target: 30, suffix: '+', label: 'Technologies' },
-  { target: 2000, suffix: '+', label: 'Tests' },
-  { target: 10, suffix: '', label: 'Grafana Dashboards' },
+  { target: 1950, suffix: '+', label: 'Tests' },
+  { target: 11, suffix: '', label: 'Grafana Dashboards' },
   { target: 3, suffix: '', label: 'Terraform Layers' },
 ] as const;
 
@@ -1111,7 +1111,7 @@ export function LandingPage({
                   <li>Alert rules for resource thresholds and simulation-critical events.</li>
                 </ul>
 
-                <h3>Grafana Dashboards (5 categories, 4 datasources)</h3>
+                <h3>Grafana Dashboards (6 categories, 5 datasources)</h3>
                 <ul>
                   <li>
                     <strong>Monitoring</strong>: Simulation overview, container metrics
@@ -1130,6 +1130,10 @@ export function LandingPage({
                   <li>
                     <strong>Performance</strong>: Infrastructure headroom, PID controller state,
                     auto-throttle adjustments
+                  </li>
+                  <li>
+                    <strong>Admin</strong>: Visitor activity and login history (via Lambda
+                    datasource)
                   </li>
                 </ul>
 
@@ -1211,7 +1215,7 @@ export function LandingPage({
                 <p>
                   Bootstrap (S3 state bucket + DynamoDB lock) &rarr; Foundation (VPC, DNS, CDN, ECR,
                   Secrets, IAM &mdash; ~$7.50/month always-on) &rarr; Platform (EKS, RDS, ALB
-                  &mdash; ~$0.65/hour on-demand). Platform reads Foundation outputs via{' '}
+                  &mdash; ~$0.31/hour on-demand). Platform reads Foundation outputs via{' '}
                   <code>terraform_remote_state</code>.
                 </p>
 
@@ -1226,8 +1230,8 @@ export function LandingPage({
                 <p>
                   Complete AWS Secrets Manager compatibility via LocalStack for development. All
                   secret groups (<code>api-key</code>, <code>core</code>, <code>data-pipeline</code>
-                  , <code>monitoring</code>) structured identically. <code>AWS_ENDPOINT_URL</code>{' '}
-                  is the only configuration change for production.
+                  ) structured identically. <code>AWS_ENDPOINT_URL</code> is the only configuration
+                  change for production.
                 </p>
 
                 <h3>4-Tier Test Strategy</h3>
